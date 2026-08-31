@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, paths, worklogHome } from '../lib/config.mjs';
+import { loadConfig, paths, shiplogHome } from '../lib/config.mjs';
 import { installScheduler, uninstallScheduler, agentStatus, LABEL } from '../lib/scheduler.mjs';
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT || join(dirname(fileURLToPath(import.meta.url)), '..');
 
-const USAGE = `worklog scheduler
+const USAGE = `shiplog scheduler
 
   --install        install and load the nightly launchd job
   --uninstall      unload and remove it
@@ -44,9 +44,9 @@ function main() {
     return status.installed ? 0 : 1;
   }
 
-  const home = worklogHome();
+  const home = shiplogHome();
   if (args.action === 'uninstall') {
-    const { removed } = uninstallScheduler({ worklogHome: home });
+    const { removed } = uninstallScheduler({ shiplogHome: home });
     process.stdout.write(`removed ${removed}\n`);
     return 0;
   }
@@ -58,7 +58,7 @@ function main() {
   if (!Number.isInteger(minute) || minute < 0 || minute > 59) throw new Error(`invalid minute: ${minute}`);
 
   const result = installScheduler({
-    worklogHome: home, pluginRoot: PLUGIN_ROOT, hour, minute, dryRun: args.action === 'print',
+    shiplogHome: home, pluginRoot: PLUGIN_ROOT, hour, minute, dryRun: args.action === 'print',
   });
 
   if (args.action === 'print') {

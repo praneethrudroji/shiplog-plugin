@@ -33,7 +33,7 @@ test('key-value secrets are redacted', () => {
     'token=super-secret-value-here',
     'password: hunter2hunter2',
     'api_key = abc123def456',
-    'WORKLOG_ADO_PAT="52characterlongpersonalaccesstokenvalue"',
+    'SHIPLOG_ADO_PAT="52characterlongpersonalaccesstokenvalue"',
   ]) {
     const out = redact(line);
     assert.match(out, /\[redacted\]/, line);

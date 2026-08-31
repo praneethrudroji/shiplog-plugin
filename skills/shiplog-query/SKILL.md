@@ -1,17 +1,17 @@
 ---
-name: worklog-query
+name: shiplog-query
 description: >
   Use when the user asks about their own work, contributions, or activity tracked by
-  worklog, e.g. "what did I do last week", "how many PRs did I raise this quarter",
+  shiplog, e.g. "what did I do last week", "how many PRs did I raise this quarter",
   "summarize my work for my 1:1", "what tickets did I close this month", "my
   contributions this FY", "prepare notes for my performance review", or any other
   question about PRs, commits, tickets, code reviews, or deployment requests across
   Azure DevOps, Jira, and GitHub for a specific or open-ended time period.
 ---
 
-# Answering questions from worklog
+# Answering questions from shiplog
 
-worklog exposes five read-only tools over MCP: `get_sync_health`, `resolve_range`,
+shiplog exposes five read-only tools over MCP: `get_sync_health`, `resolve_range`,
 `get_stats`, `query_events`, and `list_projects`. Use them in this order.
 
 ## 1. Check data health first
@@ -25,7 +25,7 @@ pending date-attribution backlog is.
   actual work.
 - If a source the user clearly cares about is in `neverSynced`, say that up front
   rather than silently answering from the sources that do have data.
-- If the tool returns an error mentioning `/worklog-setup` or `/worklog-sync`,
+- If the tool returns an error mentioning `/shiplog-setup` or `/shiplog-sync`,
   explain plainly that no data has been collected yet and point the user at that
   command. Do not guess an answer.
 
@@ -35,7 +35,7 @@ Call `resolve_range` with the user's phrasing passed through as directly as
 possible ("last 3 weeks", "this_quarter", "this_fy", "fy2026", an ISO date, or an
 ISO range). **Never compute calendar or fiscal-year arithmetic yourself.** The
 tool owns the user's configured fiscal year start and timezone, and hand-computed
-dates will drift from what `/worklog-sync` and the database itself use.
+dates will drift from what `/shiplog-sync` and the database itself use.
 
 If the user's question has no explicit range ("what have I been working on"),
 default to `last_4_weeks` and say what range you used.

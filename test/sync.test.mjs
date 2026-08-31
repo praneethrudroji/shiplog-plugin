@@ -12,8 +12,8 @@ import * as fx from './fixtures/github.mjs';
 const NOW = new Date('2026-08-31T22:00:00.000Z');
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-sync-'));
-  const db = openDatabase(join(dir, 'worklog.db'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-sync-'));
+  const db = openDatabase(join(dir, 'shiplog.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;
 }

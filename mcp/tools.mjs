@@ -93,13 +93,13 @@ function errorResult(message) {
 export function createToolHandlers({ cfg, getDb }) {
   const requireDb = () => {
     const db = getDb();
-    if (!db) throw new Error('no data yet - run /worklog-sync (or wait for the first scheduled run)');
+    if (!db) throw new Error('no data yet - run /shiplog-sync (or wait for the first scheduled run)');
     return db;
   };
 
   return {
     resolve_range({ expression }) {
-      if (!cfg) throw new Error('worklog is not configured yet - run /worklog-setup');
+      if (!cfg) throw new Error('shiplog is not configured yet - run /shiplog-setup');
       const opts = rangeOptions(cfg);
       if (expression === 'all_time') opts.coverageStart = coverageStart(requireDb());
       return resolveRange(expression, opts);

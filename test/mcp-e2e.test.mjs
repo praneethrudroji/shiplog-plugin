@@ -16,7 +16,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVER = join(HERE, '..', 'mcp', 'server.mjs');
 
 function seededHome(t, { withData = true } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'worklog-e2e-'));
+  const home = mkdtempSync(join(tmpdir(), 'shiplog-e2e-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
 
   const cfg = { ...defaultConfig(), timezone: 'UTC', fiscalYearStartMonth: 4 };
@@ -24,7 +24,7 @@ function seededHome(t, { withData = true } = {}) {
   chmodSync(join(home, 'config.json'), 0o600);
 
   if (withData) {
-    const db = openDatabase(join(home, 'worklog.db'));
+    const db = openDatabase(join(home, 'shiplog.db'));
     upsertEvents(db, [
       {
         source: 'github', event_type: 'pr_opened', external_id: 'octo/payments#42',
@@ -46,7 +46,7 @@ function seededHome(t, { withData = true } = {}) {
 /** A minimal newline-delimited JSON-RPC client over a child process's stdio. */
 function rpcClient(home) {
   const child = spawn(process.execPath, [SERVER], {
-    env: { ...process.env, WORKLOG_HOME: home },
+    env: { ...process.env, SHIPLOG_HOME: home },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
@@ -99,7 +99,7 @@ test('a real spawned server completes the initialize handshake', async (t) => {
   t.after(() => rpc.close());
 
   const res = await rpc.call('initialize', { protocolVersion: '2025-06-18', clientInfo: { name: 'test-client' } });
-  assert.equal(res.result.serverInfo.name, 'worklog');
+  assert.equal(res.result.serverInfo.name, 'shiplog');
   assert.equal(res.result.protocolVersion, '2025-06-18');
 
   rpc.notify('notifications/initialized');
@@ -148,7 +148,7 @@ test('a real process before any sync answers with a clear error, not a crash', a
     name: 'get_stats', arguments: { start: '2026-08-01', end: '2026-09-01' },
   });
   assert.equal(res.result.isError, true);
-  assert.match(JSON.parse(res.result.content[0].text).error, /worklog-sync/);
+  assert.match(JSON.parse(res.result.content[0].text).error, /shiplog-sync/);
 });
 
 test('an unparseable line gets a JSON-RPC parse error instead of killing the process', async (t) => {
@@ -159,7 +159,7 @@ test('an unparseable line gets a JSON-RPC parse error instead of killing the pro
   rpc.child.stdin.write('not json at all\n');
   // The process should still be alive and answer the next well-formed request.
   const res = await rpc.call('initialize', {});
-  assert.equal(res.result.serverInfo.name, 'worklog');
+  assert.equal(res.result.serverInfo.name, 'shiplog');
 });
 
 test('closing stdin makes the server exit cleanly', async (t) => {

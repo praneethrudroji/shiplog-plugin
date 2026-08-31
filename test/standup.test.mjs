@@ -11,14 +11,14 @@ import {
 } from '../lib/standup.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-standup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-standup-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;
 }
 
 function tempStatePath(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-standup-state-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-standup-state-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return join(dir, 'standup_state.json');
 }
@@ -48,7 +48,7 @@ test('state starts empty and round-trips through save/load', (t) => {
 });
 
 test('a corrupt state file is treated as empty rather than crashing the hook', (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-standup-corrupt-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-standup-corrupt-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, 'standup_state.json');
   writeFileSync(path, '{ not json');
@@ -77,7 +77,7 @@ test('formatStandupSummary reports counts and a stale-sync warning', (t) => {
   assert.match(text, /1 PR opened/);
   assert.match(text, /Add retry to the payment client/);
   assert.match(text, /github/);
-  assert.match(text, /worklog-status/);
+  assert.match(text, /shiplog-status/);
 });
 
 test('formatStandupSummary handles a quiet period without erroring', (t) => {

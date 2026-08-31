@@ -9,7 +9,7 @@ import {
 } from '../lib/db.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-test-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-test-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;
@@ -180,7 +180,7 @@ test('coverage start reports the earliest attributed day', (t) => {
 });
 
 test('a read-only handle cannot write', (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-ro-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-ro-'));
   const path = join(dir, 'ro.db');
   const rw = openDatabase(path);
   upsertEvent(rw, sample());

@@ -1,21 +1,21 @@
 ---
-name: worklog-setup
-description: Configure worklog - connect Azure DevOps and GitHub, set your fiscal year and timezone, choose a nightly sync time, and optionally turn on the daily standup summary.
+name: shiplog-setup
+description: Configure shiplog - connect Azure DevOps and GitHub, set your fiscal year and timezone, choose a nightly sync time, and optionally turn on the daily standup summary.
 argument-hint: "[--reconfigure]"
 allowed-tools: [Bash, Read, Write, Edit, AskUserQuestion]
 ---
 
-# Setting up worklog
+# Setting up shiplog
 
 Walk the user through setup conversationally. Do not dump every question at once, and do not
 write any file until you have confirmed the values with them.
 
-Config lives at `~/.worklog/config.json` (mode 0600). Secrets go in a separate
-`~/.worklog/secrets.env` (mode 0600) and are never written into `config.json`.
+Config lives at `~/.shiplog/config.json` (mode 0600). Secrets go in a separate
+`~/.shiplog/secrets.env` (mode 0600) and are never written into `config.json`.
 
 ## 1. Check what already exists
 
-Read `~/.worklog/config.json` if it is there. If the user passed `--reconfigure`, treat existing
+Read `~/.shiplog/config.json` if it is there. If the user passed `--reconfigure`, treat existing
 values as defaults to confirm rather than starting from scratch. If a config already exists and no
 `--reconfigure` was passed, tell them what is configured and ask what they want to change.
 
@@ -31,15 +31,15 @@ message you send later in the conversation.
 
 **GitHub.** If `gh auth status` succeeds, offer to reuse `gh auth token` so they do not need a new
 token at all. Otherwise ask for a fine-grained or classic PAT with read access to the repositories
-they work in. Store as `WORKLOG_GITHUB_TOKEN`.
+they work in. Store as `SHIPLOG_GITHUB_TOKEN`.
 
 **Azure DevOps.** Ask for a PAT from `https://dev.azure.com/{org}/_usersSettings/tokens` with these
-read scopes: Code (read), Work Items (read), Release (read). Store as `WORKLOG_ADO_PAT`. Also ask
+read scopes: Code (read), Work Items (read), Release (read). Store as `SHIPLOG_ADO_PAT`. Also ask
 for the organization (a name or the full `https://dev.azure.com/org` URL) and which projects to
 track.
 
-Write secrets with `Write` to `~/.worklog/secrets.env` in `KEY=value` form, then
-`chmod 600 ~/.worklog/secrets.env`.
+Write secrets with `Write` to `~/.shiplog/secrets.env` in `KEY=value` form, then
+`chmod 600 ~/.shiplog/secrets.env`.
 
 ## 4. Resolve identity automatically
 
@@ -49,7 +49,7 @@ Do not ask the user to type a user id. Run the whoami helper so the id comes fro
 node -e "
 import('$CLAUDE_PLUGIN_ROOT/lib/sources/github.mjs').then(async (m) => {
   const { createHttpClient } = await import('$CLAUDE_PLUGIN_ROOT/lib/http.mjs');
-  console.log(JSON.stringify(await m.whoami({ token: process.env.WORKLOG_GITHUB_TOKEN, http: createHttpClient({}) })));
+  console.log(JSON.stringify(await m.whoami({ token: process.env.SHIPLOG_GITHUB_TOKEN, http: createHttpClient({}) })));
 })"
 ```
 

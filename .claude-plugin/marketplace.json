@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "shiplog",
+  "description": "Automatic work tracking for developers: collect what you actually did across Azure DevOps and GitHub, then ask about it in plain language.",
+  "owner": {
+    "name": "Praneeth Rudroji",
+    "email": "praneethrudroji@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "shiplog",
+      "description": "Track and query your own PRs, commits, tickets, reviews and deployments across Azure DevOps and GitHub. Synced nightly into local SQLite, then answered in plain language for standups, one-on-ones and performance reviews.",
+      "author": {
+        "name": "Praneeth Rudroji",
+        "email": "praneethrudroji@gmail.com"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/praneethrudroji/shiplog-plugin"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import { loadConfig, paths } from '../lib/config.mjs';
 import { openDatabase } from '../lib/db.mjs';
 import { TOOLS, createToolHandlers, callTool } from './tools.mjs';
 
-const SERVER_INFO = { name: 'worklog', version: '0.1.0' };
+const SERVER_INFO = { name: 'shiplog', version: '0.1.0' };
 
 /**
  * Everything the JSON-RPC layer needs, decoupled from stdio so it can be driven

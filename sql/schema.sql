@@ -1,4 +1,4 @@
--- worklog schema v1
+-- shiplog schema v1
 -- Timestamps are ISO8601 UTC strings. Dates attributed to work (effective_at) are
 -- calendar dates in the user's configured timezone, stored as YYYY-MM-DD.
 

@@ -9,7 +9,7 @@ import {
 } from '../lib/config.mjs';
 
 function tempHome(t, { config, secrets, configMode = 0o600, secretsMode = 0o600 } = {}) {
-  const home = mkdtempSync(join(tmpdir(), 'worklog-cfg-'));
+  const home = mkdtempSync(join(tmpdir(), 'shiplog-cfg-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   if (config !== undefined) {
     const path = join(home, 'config.json');
@@ -58,7 +58,7 @@ test('jira deployment type is required to be cloud or server when enabled', () =
 
 test('a missing config points the user at setup', (t) => {
   const home = tempHome(t);
-  assert.throws(() => loadConfig({ home }), /Run \/worklog-setup/);
+  assert.throws(() => loadConfig({ home }), /Run \/shiplog-setup/);
 });
 
 test('a world-readable config is a hard error', { skip: process.platform === 'win32' }, (t) => {
@@ -88,16 +88,16 @@ test('secrets parse with export prefixes and quotes', (t) => {
     secrets: [
       '# a comment',
       '',
-      'export WORKLOG_GITHUB_TOKEN="ghp_example"',
-      "WORKLOG_JIRA_TOKEN='jira-token'",
-      'WORKLOG_ADO_PAT=plain-pat',
+      'export SHIPLOG_GITHUB_TOKEN="ghp_example"',
+      "SHIPLOG_JIRA_TOKEN='jira-token'",
+      'SHIPLOG_ADO_PAT=plain-pat',
       'malformed line without equals',
     ].join('\n'),
   });
   const secrets = loadSecrets({ home });
-  assert.equal(secrets.WORKLOG_GITHUB_TOKEN, 'ghp_example');
-  assert.equal(secrets.WORKLOG_JIRA_TOKEN, 'jira-token');
-  assert.equal(secrets.WORKLOG_ADO_PAT, 'plain-pat');
+  assert.equal(secrets.SHIPLOG_GITHUB_TOKEN, 'ghp_example');
+  assert.equal(secrets.SHIPLOG_JIRA_TOKEN, 'jira-token');
+  assert.equal(secrets.SHIPLOG_ADO_PAT, 'plain-pat');
 });
 
 test('a world-readable secrets file is a hard error', { skip: process.platform === 'win32' }, (t) => {
@@ -112,17 +112,17 @@ test('a missing secrets file is not an error', (t) => {
 
 test('the secrets file takes precedence over the ambient environment', () => {
   const cfg = defaultConfig();
-  process.env.WORKLOG_GITHUB_TOKEN = 'from-environment';
+  process.env.SHIPLOG_GITHUB_TOKEN = 'from-environment';
   try {
     assert.equal(resolveToken(cfg, 'github', {}), 'from-environment');
-    assert.equal(resolveToken(cfg, 'github', { WORKLOG_GITHUB_TOKEN: 'from-file' }), 'from-file');
+    assert.equal(resolveToken(cfg, 'github', { SHIPLOG_GITHUB_TOKEN: 'from-file' }), 'from-file');
   } finally {
-    delete process.env.WORKLOG_GITHUB_TOKEN;
+    delete process.env.SHIPLOG_GITHUB_TOKEN;
   }
 });
 
 test('assertSecureMode ignores files that do not exist', () => {
-  assert.doesNotThrow(() => assertSecureMode('/nonexistent/worklog/config.json'));
+  assert.doesNotThrow(() => assertSecureMode('/nonexistent/shiplog/config.json'));
 });
 
 test('only enabled sources are listed', () => {

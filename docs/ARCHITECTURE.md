@@ -1,13 +1,13 @@
 # Architecture
 
-This document explains how `worklog` is built: the data flow between its stages, the responsibility of
+This document explains how `shiplog` is built: the data flow between its stages, the responsibility of
 each module, and the invariants the implementation depends on. It assumes no prior familiarity with
 the codebase. For *why* a given approach was chosen over an alternative, see
 [DECISIONS.md](DECISIONS.md), which this document references rather than repeats.
 
 ## Overview
 
-`worklog` runs in three stages, each with a distinct trust boundary:
+`shiplog` runs in three stages, each with a distinct trust boundary:
 
 ```
  ┌──────────────┐      ┌───────────────┐      ┌──────────────────┐
@@ -41,7 +41,7 @@ below.
 | Path | Responsibility |
 | --- | --- |
 | `lib/ranges.mjs` | Calendar arithmetic: named ranges, fiscal years and quarters, timezone-correct day boundaries |
-| `lib/config.mjs` | Loads and validates `~/.worklog/config.json`; separates secrets from configuration |
+| `lib/config.mjs` | Loads and validates `~/.shiplog/config.json`; separates secrets from configuration |
 | `sql/schema.sql`, `lib/db.mjs` | The SQLite schema and all read/write access to it |
 | `lib/http.mjs` | A shared HTTP client with retry, backoff, and rate-limit handling |
 | `lib/redact.mjs` | Strips credential-shaped strings from anything written to the log |
@@ -53,7 +53,7 @@ below.
 | `bin/sync.mjs` | The ingestion entry point; what the OS scheduler runs |
 | `mcp/tools.mjs` | The query tools' definitions and handler logic, independent of transport |
 | `mcp/server.mjs` | The stdio JSON-RPC harness Claude Code launches and communicates with |
-| `skills/worklog-query/SKILL.md` | Teaches Claude when and how to use the query tools |
+| `skills/shiplog-query/SKILL.md` | Teaches Claude when and how to use the query tools |
 | `lib/standup.mjs` | Standup summary logic: once-per-day gating and plain-text formatting |
 | `bin/standup.mjs`, `hooks/hooks.json` | The `SessionStart` hook that surfaces the summary automatically |
 
@@ -86,8 +86,8 @@ their reporting periods correctly through the same function.
 
 ### Configuration and secrets (`lib/config.mjs`)
 
-Configuration is loaded from `~/.worklog/config.json`, validated field by field, and merged over a set
-of defaults, so a configuration file written against an older version of `worklog` still loads
+Configuration is loaded from `~/.shiplog/config.json`, validated field by field, and merged over a set
+of defaults, so a configuration file written against an older version of `shiplog` still loads
 correctly after an upgrade adds new fields.
 
 Two properties are enforced at load time rather than left as documentation:
@@ -96,7 +96,7 @@ Two properties are enforced at load time rather than left as documentation:
   readable by another user or group is treated as a setup error, not a warning, because both files
   govern access to the developer's own work history and, for secrets, live credentials.
 - **Secrets are never stored in the configuration file.** `config.json` records the *name* of an
-  environment variable (`tokenEnv: "WORKLOG_GITHUB_TOKEN"`); the value lives in a separate
+  environment variable (`tokenEnv: "SHIPLOG_GITHUB_TOKEN"`); the value lives in a separate
   `secrets.env` file. This means the configuration file remains safe to inspect, log, or share while
   debugging, without risk of exposing a credential.
 
@@ -203,7 +203,7 @@ and then processes each enabled source independently, a failure in one source is
 recorded against that source's `sync_state`, without affecting any other source's run or advancing
 that source's watermark past the point of failure. The process exit code reflects the outcome: `0` if
 every source succeeded, `2` if some but not all failed, `1` if all failed, which is what a future
-`/worklog-status` command surfaces to the user.
+`/shiplog-status` command surfaces to the user.
 
 ### Backups (`lib/backup.mjs`)
 
@@ -258,10 +258,10 @@ a parsed JSON-RPC request to a response, with no dependency on stdio, so the pro
 routing, notification handling, error shaping) can be tested by calling it directly, and only a
 smaller set of tests needs to exercise the real subprocess and its line framing. Both configuration and
 the database connection are resolved lazily and re-checked per call, since a freshly installed plugin
-has neither yet: a tool invoked before `/worklog-setup` or before the first sync returns a clear,
+has neither yet: a tool invoked before `/shiplog-setup` or before the first sync returns a clear,
 catchable error rather than crashing the server process.
 
-`skills/worklog-query/SKILL.md` is a model-invoked skill, Claude reaches for it based on its
+`skills/shiplog-query/SKILL.md` is a model-invoked skill, Claude reaches for it based on its
 description, not a slash command, that sequences these tools: check `get_sync_health` first and
 surface staleness, resolve the range through `resolve_range` rather than computing dates directly,
 get aggregate shape from `get_stats` before specifics from `query_events`, and cite each event's
@@ -298,7 +298,7 @@ Three things make the hook safe to ship into an automatic, unattended path:
   because that is itself useful information once the feature is active.
   A corrupt `standup_state.json` is treated the same way as a missing one, for the same reason: this
   path must degrade to silence, never to an error.
-- **Gating is a plain date comparison** (`lastShownDate` in `~/.worklog/standup_state.json` against
+- **Gating is a plain date comparison** (`lastShownDate` in `~/.shiplog/standup_state.json` against
   today's date in the configured timezone), checked and updated by `runStandupCheck` in
   `lib/standup.mjs`, kept independent of the hook transport so it's tested directly, without spawning
   a process, for every case except the transport itself.

@@ -1,6 +1,6 @@
 ---
-name: worklog-sync
-description: Run a worklog sync now instead of waiting for the nightly job - useful right before a standup, a one-on-one, or a review.
+name: shiplog-sync
+description: Run a shiplog sync now instead of waiting for the nightly job - useful right before a standup, a one-on-one, or a review.
 argument-hint: "[--dry-run] [--source github|azure_devops] [--since YYYY-MM-DD] [--no-enrich]"
 allowed-tools: [Bash]
 ---
@@ -31,7 +31,7 @@ Report what was written per source. If a source failed, quote the error rather t
 it, and note that its watermark did not move, so the window it missed will be retried on the next
 run and nothing was lost.
 
-A run also snapshots the database to `~/.worklog/backups/` before making changes, and prunes
+A run also snapshots the database to `~/.shiplog/backups/` before making changes, and prunes
 snapshots past the retention window.
 
 If the user is about to walk into a standup or review, offer to summarize what the sync just picked

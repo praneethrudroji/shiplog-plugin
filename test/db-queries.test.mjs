@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { openDatabase, upsertEvents, getStats, queryEvents, listProjects, getSyncHealth, setSyncState } from '../lib/db.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-queries-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-queries-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;

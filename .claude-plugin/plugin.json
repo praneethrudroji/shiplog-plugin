@@ -1,11 +1,13 @@
 {
-  "name": "worklog",
+  "name": "shiplog",
   "version": "0.1.0",
-  "description": "Track and query your own PRs, commits, tickets, reviews and deployments across Azure DevOps, Jira and GitHub. Synced nightly by your OS scheduler into local SQLite, then answered in natural language for 1:1s and performance reviews.",
+  "description": "Track and query your own PRs, commits, tickets, reviews and deployments across Azure DevOps and GitHub. Synced nightly into local SQLite, then answered in plain language for standups, one-on-ones and performance reviews.",
   "author": {
     "name": "Praneeth Rudroji",
     "email": "praneethrudroji@gmail.com"
   },
+  "homepage": "https://github.com/praneethrudroji/shiplog-plugin",
+  "repository": "https://github.com/praneethrudroji/shiplog-plugin",
   "license": "MIT",
   "keywords": [
     "productivity",
@@ -13,7 +15,6 @@
     "performance-review",
     "standup",
     "azure-devops",
-    "jira",
     "github",
     "sqlite"
   ]

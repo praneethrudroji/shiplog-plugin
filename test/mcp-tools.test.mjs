@@ -8,7 +8,7 @@ import { defaultConfig } from '../lib/config.mjs';
 import { TOOLS, createToolHandlers, callTool } from '../mcp/tools.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-mcp-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-mcp-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;
@@ -50,14 +50,14 @@ test('resolve_range without configuration returns a clear, catchable error', () 
   const handlers = createToolHandlers({ cfg: null, getDb: () => null });
   const result = callTool(handlers, 'resolve_range', { expression: 'today' });
   assert.equal(result.isError, true);
-  assert.match(JSON.parse(result.content[0].text).error, /worklog-setup/);
+  assert.match(JSON.parse(result.content[0].text).error, /shiplog-setup/);
 });
 
 test('a query tool before any sync returns a clear error instead of crashing', () => {
   const handlers = createToolHandlers({ cfg: cfg(), getDb: () => null });
   const result = callTool(handlers, 'get_stats', { start: '2026-08-01', end: '2026-09-01' });
   assert.equal(result.isError, true);
-  assert.match(JSON.parse(result.content[0].text).error, /worklog-sync/);
+  assert.match(JSON.parse(result.content[0].text).error, /shiplog-sync/);
 });
 
 test('get_stats and query_events work once data exists', (t) => {

@@ -8,7 +8,7 @@ import { defaultConfig } from '../lib/config.mjs';
 import { parseAttributions, validateAttribution, buildPrompt, enrichPending } from '../lib/temporal/enrich.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-enrich-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-enrich-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;

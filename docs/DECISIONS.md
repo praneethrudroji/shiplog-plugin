@@ -1,6 +1,6 @@
 # Architecture Decisions
 
-This document records the decisions that shaped `worklog`'s design: what was chosen, what alternative
+This document records the decisions that shaped `shiplog`'s design: what was chosen, what alternative
 was rejected, and why. It exists so that a later contributor, including the original author, months
 on, can evaluate whether a decision still holds rather than re-deriving it from the code.
 
@@ -84,7 +84,7 @@ can be queried, which is unrestricted.
 
 ## Runtime and dependencies (D12, D13, D14)
 
-`worklog` targets Node.js 22 or later and depends on no third-party packages. `node:sqlite` provides
+`shiplog` targets Node.js 22 or later and depends on no third-party packages. `node:sqlite` provides
 persistence, the global `fetch` provides HTTP, and `node:test` provides the test runner, all from the
 standard library.
 

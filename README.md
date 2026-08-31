@@ -1,4 +1,4 @@
-# worklog
+# shiplog
 
 A Claude Code plugin that remembers what you actually did at work, so you don't have to reconstruct
 it from memory the morning of a review.
@@ -38,7 +38,7 @@ Q2". Ticket systems show current state, not history. Git shows commits, not cont
 the details have aged out of easy recall, and what you can remember tends to be whatever happened
 most recently.
 
-worklog keeps a durable local record so the answer is a query rather than an archaeology project.
+shiplog keeps a durable local record so the answer is a query rather than an archaeology project.
 
 ## How it works
 
@@ -68,24 +68,27 @@ Your data stays on your machine. Nothing is uploaded anywhere.
 Add the marketplace and install the plugin:
 
 ```
-/plugin marketplace add praneethrudroji/worklog
-/plugin install worklog
+/plugin marketplace add praneethrudroji/shiplog-plugin
+/plugin install shiplog
 ```
 
 Or clone it directly into your plugins directory:
 
 ```bash
-git clone https://github.com/praneethrudroji/worklog.git ~/.claude/plugins/worklog
+git clone https://github.com/praneethrudroji/shiplog-plugin.git ~/.claude/plugins/shiplog
 ```
 
 Then restart Claude Code so the plugin's MCP server and hook are picked up.
+
+To confirm it loaded, run `/help` and look for the `shiplog` commands, or just run
+`/shiplog-status`.
 
 ## Setup
 
 Run this and answer the questions:
 
 ```
-/worklog-setup
+/shiplog-setup
 ```
 
 It walks through connecting your sources, resolves your user identity from each API rather than
@@ -102,7 +105,7 @@ nothing else. Otherwise create a token with read access to the repositories you 
 with three read scopes: Code (read), Work Items (read), Release (read). You will also be asked for
 your organization and which projects to track.
 
-Tokens are written to `~/.worklog/secrets.env` with mode 0600 and are never stored in the config file.
+Tokens are written to `~/.shiplog/secrets.env` with mode 0600 and are never stored in the config file.
 
 ## Using it
 
@@ -125,11 +128,11 @@ taken from a timestamp.
 
 | Command | What it does |
 | --- | --- |
-| `/worklog-setup` | Configure sources, calendar, schedule, standup. Add `--reconfigure` to change existing settings |
-| `/worklog-sync` | Sync now instead of waiting for tonight. Useful right before a standup or review |
-| `/worklog-status` | Last sync per source, event counts, backlog size, whether the nightly job is registered |
+| `/shiplog-setup` | Configure sources, calendar, schedule, standup. Add `--reconfigure` to change existing settings |
+| `/shiplog-sync` | Sync now instead of waiting for tonight. Useful right before a standup or review |
+| `/shiplog-status` | Last sync per source, event counts, backlog size, whether the nightly job is registered |
 
-`/worklog-sync` takes the same flags as the underlying script: `--dry-run` to check credentials
+`/shiplog-sync` takes the same flags as the underlying script: `--dry-run` to check credentials
 without writing, `--source github` to limit it, `--since 2026-01-01` to backfill further, and
 `--no-enrich` to skip the date attribution step.
 
@@ -154,7 +157,7 @@ Turn this on and the first time you start a session each day, you get a short su
 else:
 
 ```
-📋 worklog - last working day (2026-08-28 to 2026-08-28):
+📋 shiplog - last working day (2026-08-28 to 2026-08-28):
   • 2 PRs merged
   • 1 PR opened
   • 3 ticket comments
@@ -164,7 +167,7 @@ Highlights:
   - Fix settlement rounding drift (https://dev.azure.com/acme/Payments/_workitems/edit/299)
 ```
 
-Set it in `~/.worklog/config.json`:
+Set it in `~/.shiplog/config.json`:
 
 ```json
 "standup": { "enabled": true, "range": "last_working_day" }
@@ -185,7 +188,7 @@ filters on it, so a colleague's comment on your PR never becomes part of your re
 
 ## Configuration
 
-Everything lives in `~/.worklog/config.json` (mode 0600):
+Everything lives in `~/.shiplog/config.json` (mode 0600):
 
 ```json
 {
@@ -198,8 +201,8 @@ Everything lives in `~/.worklog/config.json` (mode 0600):
   "fiscalYearNaming": "start_year",
   "identity": { "githubLogin": "", "adoUserId": "" },
   "sources": {
-    "github": { "enabled": true, "useGhCli": true, "tokenEnv": "WORKLOG_GITHUB_TOKEN", "orgs": [], "includeCommits": false },
-    "azure_devops": { "enabled": true, "orgUrl": "", "projects": [], "tokenEnv": "WORKLOG_ADO_PAT", "includeDeployments": true }
+    "github": { "enabled": true, "useGhCli": true, "tokenEnv": "SHIPLOG_GITHUB_TOKEN", "orgs": [], "includeCommits": false },
+    "azure_devops": { "enabled": true, "orgUrl": "", "projects": [], "tokenEnv": "SHIPLOG_ADO_PAT", "includeDeployments": true }
   },
   "sync": { "lookbackHours": 48, "initialBackfillFrom": "fy-start", "maxBodyChars": 2000 },
   "enrich": { "enabled": true, "model": "haiku", "fallbackModel": "sonnet", "confidenceFloor": 0.6, "batchSize": 50 },
@@ -220,10 +223,10 @@ A few worth knowing about:
 ## Where your data lives
 
 ```
-~/.worklog/
+~/.shiplog/
 ├── config.json      settings, mode 0600, holds env var names and never secrets
 ├── secrets.env      tokens, mode 0600
-├── worklog.db       the record, mode 0600
+├── shiplog.db       the record, mode 0600
 ├── backups/         rotated gzipped snapshots, mode 0600
 └── logs/sync.log    what the nightly job did
 ```
@@ -290,6 +293,19 @@ script the way Claude Code invokes it.
 - A command for correcting a date attribution by hand.
 - Azure DevOps YAML pipeline approvals, which have no clean REST equivalent to Classic Releases today.
 
+## Contributing
+
+Issues and pull requests are welcome, particularly from anyone running this against a real Azure
+DevOps organization, since that path has not been exercised against live data yet.
+
+If you are adding a source, `lib/sources/github.mjs` is the reference implementation. The pattern is:
+take an injected `fetcher` rather than calling `fetch` directly, resolve the user's identity from the
+API rather than trusting configuration, filter every result to that identity, and build fixtures from
+the provider's own documented examples. That keeps the tests offline and credential free.
+
+Please run `node --test test/` before opening a pull request. The suite should stay under a second and
+should never need network access or credentials.
+
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).

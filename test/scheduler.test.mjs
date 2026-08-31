@@ -10,7 +10,7 @@ import {
 } from '../lib/scheduler.mjs';
 import { parseArgs } from '../bin/install-scheduler.mjs';
 
-function tempHome(t, prefix = 'worklog-sched-') {
+function tempHome(t, prefix = 'shiplog-sched-') {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
@@ -32,10 +32,10 @@ test('shellQuote survives spaces and embedded quotes', () => {
 
 test('shellQuote output is actually safe when a real shell evaluates it', () => {
   // Verified by execution rather than by reading the escaping and hoping.
-  const nasty = `/tmp/a'; touch /tmp/worklog-pwned; echo '`;
+  const nasty = `/tmp/a'; touch /tmp/shiplog-pwned; echo '`;
   const out = execFileSync('/bin/bash', ['-c', `printf %s ${shellQuote(nasty)}`], { encoding: 'utf8' });
   assert.equal(out, nasty, 'the shell must treat the whole thing as one literal string');
-  assert.equal(existsSync('/tmp/worklog-pwned'), false, 'no injected command should have run');
+  assert.equal(existsSync('/tmp/shiplog-pwned'), false, 'no injected command should have run');
 });
 
 test('escapeXml escapes every character that would break a plist', () => {
@@ -44,25 +44,25 @@ test('escapeXml escapes every character that would break a plist', () => {
 
 test('the wrapper script sources secrets and uses absolute paths', () => {
   const script = buildWrapperScript({
-    nodePath: '/usr/local/bin/node', syncPath: '/plugins/worklog/bin/sync.mjs', worklogHome: '/Users/x/.worklog',
+    nodePath: '/usr/local/bin/node', syncPath: '/plugins/shiplog/bin/sync.mjs', shiplogHome: '/Users/x/.shiplog',
   });
   assert.match(script, /^#!\/bin\/bash/);
   assert.match(script, /set -euo pipefail/);
   assert.match(script, /secrets\.env/, 'launchd does not read a shell profile, so secrets must be sourced here');
-  assert.match(script, /'\/usr\/local\/bin\/node' '\/plugins\/worklog\/bin\/sync\.mjs'/);
+  assert.match(script, /'\/usr\/local\/bin\/node' '\/plugins\/shiplog\/bin\/sync\.mjs'/);
   assert.ok(!script.includes('${CLAUDE_PLUGIN_ROOT}'), 'launchd expands nothing; paths must be baked in');
 });
 
 test('a plugin path with a space is still a valid single command', () => {
   const script = buildWrapperScript({
-    nodePath: '/usr/local/bin/node', syncPath: '/My Plugins/worklog/bin/sync.mjs', worklogHome: '/Users/x/.worklog',
+    nodePath: '/usr/local/bin/node', syncPath: '/My Plugins/shiplog/bin/sync.mjs', shiplogHome: '/Users/x/.shiplog',
   });
-  assert.match(script, /'\/My Plugins\/worklog\/bin\/sync\.mjs'/);
+  assert.match(script, /'\/My Plugins\/shiplog\/bin\/sync\.mjs'/);
 });
 
 test('the plist schedules a calendar interval and does not run at load', () => {
-  const plist = buildPlist({ wrapperPath: '/Users/x/.worklog/run_sync.sh', hour: 2, minute: 5, worklogHome: '/Users/x/.worklog' });
-  assert.match(plist, /<key>Label<\/key><string>com\.worklog\.sync<\/string>/);
+  const plist = buildPlist({ wrapperPath: '/Users/x/.shiplog/run_sync.sh', hour: 2, minute: 5, shiplogHome: '/Users/x/.shiplog' });
+  assert.match(plist, /<key>Label<\/key><string>com\.shiplog\.sync<\/string>/);
   assert.match(plist, /<key>Hour<\/key><integer>2<\/integer>/);
   assert.match(plist, /<key>Minute<\/key><integer>5<\/integer>/);
   assert.match(plist, /<key>RunAtLoad<\/key><false\/>/, 'installing should not immediately fire a sync');
@@ -70,7 +70,7 @@ test('the plist schedules a calendar interval and does not run at load', () => {
 });
 
 test('hour and minute are coerced to numbers, so nothing user-supplied lands in the XML verbatim', () => {
-  const plist = buildPlist({ wrapperPath: '/w/run.sh', hour: '3', minute: '07', worklogHome: '/w' });
+  const plist = buildPlist({ wrapperPath: '/w/run.sh', hour: '3', minute: '07', shiplogHome: '/w' });
   assert.match(plist, /<key>Hour<\/key><integer>3<\/integer>/);
   assert.match(plist, /<key>Minute<\/key><integer>7<\/integer>/);
 });
@@ -78,22 +78,22 @@ test('hour and minute are coerced to numbers, so nothing user-supplied lands in 
 test('--print produces both files without writing or loading anything', (t) => {
   const home = tempHome(t);
   const result = installScheduler({
-    worklogHome: home, pluginRoot: '/plugins/worklog', hour: 2, minute: 0, dryRun: true,
+    shiplogHome: home, pluginRoot: '/plugins/shiplog', hour: 2, minute: 0, dryRun: true,
     load: () => { throw new Error('must not load during a dry run'); },
   });
   assert.equal(result.dryRun, true);
   assert.ok(result.wrapper.includes('sync.mjs'));
-  assert.ok(result.plist.includes('com.worklog.sync'));
+  assert.ok(result.plist.includes('com.shiplog.sync'));
   assert.equal(existsSync(join(home, 'run_sync.sh')), false, 'nothing should be written');
 });
 
 test('install writes the wrapper 0700 and the plist, then loads it', { skip: process.platform !== 'darwin' }, (t) => {
-  const worklog = tempHome(t);
-  const fakeHome = tempHome(t, 'worklog-fakehome-');
+  const shiplog = tempHome(t);
+  const fakeHome = tempHome(t, 'shiplog-fakehome-');
   let loadedWith = null;
 
   const result = installScheduler({
-    worklogHome: worklog, pluginRoot: '/plugins/worklog', hour: 6, minute: 15, home: fakeHome,
+    shiplogHome: shiplog, pluginRoot: '/plugins/shiplog', hour: 6, minute: 15, home: fakeHome,
     load: (p) => { loadedWith = p; return { loaded: true, detail: 'registered' }; },
   });
 
@@ -111,7 +111,7 @@ test('a non-macOS platform fails with actionable guidance rather than silently d
   t.after(() => Object.defineProperty(process, 'platform', original));
 
   assert.throws(
-    () => installScheduler({ worklogHome: home, pluginRoot: '/p', hour: 2, minute: 0 }),
+    () => installScheduler({ shiplogHome: home, pluginRoot: '/p', hour: 2, minute: 0 }),
     /only implemented for macOS.*cron entry manually/s,
   );
 });
@@ -150,24 +150,24 @@ test('agentStatus reports not-installed cleanly', () => {
 });
 
 test('uninstall removes the plist and the wrapper', (t) => {
-  const worklog = tempHome(t);
-  const fakeHome = tempHome(t, 'worklog-fakehome-');
+  const shiplog = tempHome(t);
+  const fakeHome = tempHome(t, 'shiplog-fakehome-');
   installScheduler({
-    worklogHome: worklog, pluginRoot: '/p', hour: 2, minute: 0, home: fakeHome,
+    shiplogHome: shiplog, pluginRoot: '/p', hour: 2, minute: 0, home: fakeHome,
     load: () => ({ loaded: true, detail: 'registered' }),
   });
-  assert.equal(existsSync(join(worklog, 'run_sync.sh')), true);
+  assert.equal(existsSync(join(shiplog, 'run_sync.sh')), true);
 
-  uninstallScheduler({ home: fakeHome, worklogHome: worklog, unload: () => ({ ok: true }) });
+  uninstallScheduler({ home: fakeHome, shiplogHome: shiplog, unload: () => ({ ok: true }) });
   assert.equal(existsSync(launchAgentPath(fakeHome)), false);
-  assert.equal(existsSync(join(worklog, 'run_sync.sh')), false);
+  assert.equal(existsSync(join(shiplog, 'run_sync.sh')), false);
 });
 
 test('uninstalling when nothing is installed is harmless', (t) => {
-  const fakeHome = tempHome(t, 'worklog-fakehome-');
+  const fakeHome = tempHome(t, 'shiplog-fakehome-');
   assert.doesNotThrow(() => uninstallScheduler({ home: fakeHome, unload: () => ({ ok: true }) }));
 });
 
 test('the label is stable, since it is the handle used to unload and inspect the job', () => {
-  assert.equal(LABEL, 'com.worklog.sync');
+  assert.equal(LABEL, 'com.shiplog.sync');
 });

@@ -8,7 +8,7 @@ import { defaultConfig } from '../lib/config.mjs';
 import { createDispatcher } from '../mcp/server.mjs';
 
 function tempDb(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-rpc-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-rpc-'));
   const db = openDatabase(join(dir, 'test.db'));
   t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
   return db;
@@ -20,7 +20,7 @@ test('initialize echoes the requested protocol version and advertises tools', ()
   const dispatch = createDispatcher({ getCfg: () => cfg(), getDb: () => null });
   const res = dispatch({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
   assert.equal(res.result.protocolVersion, '2025-06-18');
-  assert.equal(res.result.serverInfo.name, 'worklog');
+  assert.equal(res.result.serverInfo.name, 'shiplog');
   assert.deepEqual(res.result.capabilities, { tools: {} });
 });
 

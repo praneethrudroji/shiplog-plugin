@@ -26,7 +26,7 @@ export function parseArgs(argv) {
   return args;
 }
 
-const USAGE = `worklog sync - collect your activity into the local database
+const USAGE = `shiplog sync - collect your activity into the local database
 
   --source <name>     only sync one source (github, azure_devops, jira)
   --since <date>      override the window start (YYYY-MM-DD or ISO instant)
@@ -62,7 +62,7 @@ function normalizeSince(value) {
 export async function runSync({ args, cfg, secrets, db, log, http, now = new Date(), runClaude }) {
   const sources = args.source ? [args.source] : enabledSources(cfg);
   if (!sources.length) {
-    log.warn('no sources are enabled - run /worklog-setup');
+    log.warn('no sources are enabled - run /shiplog-setup');
     return { results: [], exitCode: 0 };
   }
 

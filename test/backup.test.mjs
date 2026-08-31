@@ -9,7 +9,7 @@ import { openDatabase, upsertEvent } from '../lib/db.mjs';
 import { snapshot, listSnapshots, prune } from '../lib/backup.mjs';
 
 function tempDir(t) {
-  const dir = mkdtempSync(join(tmpdir(), 'worklog-backup-'));
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-backup-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -22,7 +22,7 @@ const sample = (id) => ({
 
 test('a snapshot is gzipped and restores to a readable database', async (t) => {
   const dir = tempDir(t);
-  const db = openDatabase(join(dir, 'worklog.db'));
+  const db = openDatabase(join(dir, 'shiplog.db'));
   upsertEvent(db, sample('a'));
   upsertEvent(db, sample('b'));
 
@@ -30,9 +30,9 @@ test('a snapshot is gzipped and restores to a readable database', async (t) => {
   const { path, bytes } = await snapshot(db, backups, { now: new Date('2026-08-31T22:00:00Z') });
   db.close();
 
-  assert.match(path, /worklog-2026-08-31T22-00-00Z\.db\.gz$/);
+  assert.match(path, /shiplog-2026-08-31T22-00-00Z\.db\.gz$/);
   assert.ok(bytes > 0);
-  assert.deepEqual(readdirSync(backups), ['worklog-2026-08-31T22-00-00Z.db.gz'], 'no staging file left behind');
+  assert.deepEqual(readdirSync(backups), ['shiplog-2026-08-31T22-00-00Z.db.gz'], 'no staging file left behind');
 
   const restored = join(dir, 'restored.db');
   await pipeline(createReadStream(path), createGunzip(), createWriteStream(restored));
@@ -44,11 +44,11 @@ test('a snapshot is gzipped and restores to a readable database', async (t) => {
 test('snapshots are listed newest first', (t) => {
   const dir = tempDir(t);
   for (const name of [
-    'worklog-2026-08-29T02-00-00Z.db.gz',
-    'worklog-2026-08-31T02-00-00Z.db.gz',
-    'worklog-2026-08-30T02-00-00Z.db.gz',
+    'shiplog-2026-08-29T02-00-00Z.db.gz',
+    'shiplog-2026-08-31T02-00-00Z.db.gz',
+    'shiplog-2026-08-30T02-00-00Z.db.gz',
     'not-a-backup.txt',
-    'worklog-garbage.db.gz',
+    'shiplog-garbage.db.gz',
   ]) writeFileSync(join(dir, name), 'x');
 
   const found = listSnapshots(dir);
@@ -57,19 +57,19 @@ test('snapshots are listed newest first', (t) => {
 });
 
 test('listing a directory that does not exist yet returns empty', () => {
-  assert.deepEqual(listSnapshots('/nonexistent/worklog/backups'), []);
+  assert.deepEqual(listSnapshots('/nonexistent/shiplog/backups'), []);
 });
 
 test('snapshots past the retention window are pruned', (t) => {
   const dir = tempDir(t);
   for (const day of ['2026-06-01', '2026-07-15', '2026-08-25', '2026-08-30']) {
-    writeFileSync(join(dir, `worklog-${day}T02-00-00Z.db.gz`), 'x');
+    writeFileSync(join(dir, `shiplog-${day}T02-00-00Z.db.gz`), 'x');
   }
 
   const removed = prune(dir, { retentionDays: 30, now: new Date('2026-08-31T02:00:00Z') });
   assert.deepEqual(removed.sort(), [
-    'worklog-2026-06-01T02-00-00Z.db.gz',
-    'worklog-2026-07-15T02-00-00Z.db.gz',
+    'shiplog-2026-06-01T02-00-00Z.db.gz',
+    'shiplog-2026-07-15T02-00-00Z.db.gz',
   ]);
   assert.equal(listSnapshots(dir).length, 2);
 });
@@ -79,12 +79,12 @@ test('the newest snapshot is kept even when it is past the retention window', (t
   // A machine left off for months: everything is stale, but discarding the only
   // backup would leave the user with none at all.
   for (const day of ['2026-01-01', '2026-02-01']) {
-    writeFileSync(join(dir, `worklog-${day}T02-00-00Z.db.gz`), 'x');
+    writeFileSync(join(dir, `shiplog-${day}T02-00-00Z.db.gz`), 'x');
   }
 
   const removed = prune(dir, { retentionDays: 30, now: new Date('2026-08-31T02:00:00Z') });
-  assert.deepEqual(removed, ['worklog-2026-01-01T02-00-00Z.db.gz']);
-  assert.deepEqual(listSnapshots(dir).map((s) => s.name), ['worklog-2026-02-01T02-00-00Z.db.gz']);
+  assert.deepEqual(removed, ['shiplog-2026-01-01T02-00-00Z.db.gz']);
+  assert.deepEqual(listSnapshots(dir).map((s) => s.name), ['shiplog-2026-02-01T02-00-00Z.db.gz']);
 });
 
 test('pruning an empty directory is harmless', (t) => {
