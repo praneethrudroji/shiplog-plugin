@@ -1,0 +1,16 @@
+node_modules/
+
+# Runtime data. These live in ~/.worklog in real use, but never commit them if a
+# stray copy lands in the repo.
+*.db
+*.db-wal
+*.db-shm
+secrets.env
+config.json
+backups/
+logs/
+
+# Personal verification notes, not part of the published plugin.
+LOCAL_TESTING.md
+
+.DS_Store
