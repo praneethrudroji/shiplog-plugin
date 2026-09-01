@@ -280,6 +280,17 @@ Two suites go further and exercise real process boundaries: `test/mcp-e2e.test.m
 server and speaks real JSON-RPC to it over stdio, and `test/standup-hook.test.mjs` runs the hook
 script the way Claude Code invokes it.
 
+### Live testing against real data
+
+Fixtures prove the code handles the shapes it was given correctly. They cannot prove it behaves
+correctly against a live account, real pagination, a real token, a comment someone actually wrote.
+[shiplog-test-data](https://github.com/praneethrudroji/shiplog-test-data) is a small sandbox repo
+kept for exactly that: real PRs, real comments, sometimes deliberately awkward phrasing aimed at
+shiplog's date attribution rather than at building anything. Running the plugin's first real sync
+against it caught a genuine bug this way: an attribution that resolved "last Friday" to a Saturday,
+which is what led to the deterministic weekday check described in
+[docs/DECISIONS.md](docs/DECISIONS.md).
+
 ## Design notes
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the code fits together, module by module.

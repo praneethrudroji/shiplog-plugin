@@ -31,6 +31,7 @@ rather than removed, so the project's history stays legible.
 | D18 | Jira | Descoped to a future release | Ship alongside GitHub and Azure DevOps in v1 | Reprioritized to ship the automatic standup summary first; the source-module pattern GitHub and Azure DevOps established carries over directly when Jira is picked back up |
 | D19 | Standup summary trigger | A deterministic `SessionStart` hook, gated to once per calendar day | An MCP tool the user invokes manually | The point is that it appears without being asked, which is how a standup summary is actually used |
 | D20 | Standup summary computation | Local SQLite query, no LLM call | Route it through `claude -p` like attribution does | It fires on every terminal open; it must be instant and free, not wait on a model call |
+| D21 | Weekday cross-check on attribution | Deterministic: verify a claimed weekday against the resolved date's actual weekday | Trust the model's own date reasoning | Found live: the model resolved "Last Friday" to a Saturday at 0.95 confidence; a claimed weekday is a fact code can check with certainty and should not depend on the model getting right |
 
 ## Ingest and query are separated by design (D5, D6, D7)
 
@@ -126,6 +127,29 @@ reopened per request, is what a single persistent connection already gives for f
 Concurrent access between the query server (a reader) and the sync job (a writer) is handled by
 SQLite's write-ahead log mode (`PRAGMA journal_mode = WAL`), under which readers and writers do not
 block one another. This is what makes it safe to ask a question while a scheduled sync is in progress.
+
+## A claimed weekday is verified deterministically (D21)
+
+The first real sync against a live account surfaced a genuine correctness bug. A comment posted on a
+Tuesday read "Last Friday I noticed a small typo, fixed now." The model resolved this to a date that
+was, in fact, a Saturday, and it passed every existing guard: confidence 0.95, well within the
+backdate window for a relative reference. Nothing checked that "Friday" actually landed on a Friday.
+
+This is the exact failure this system exists to prevent. The whole premise is that a stored
+attribution can be trusted as evidence; a wrong date accepted with high confidence is worse than no
+attribution at all, since it looks authoritative.
+
+The fix does not ask the model to try harder. It adds a check code can perform with certainty:
+scan the source text for a weekday name, and if one is present, verify that the resolved
+`effective_date` actually falls on that day. A mismatch is rejected the same way every other guard
+rejects, the event keeps its posted date and stays queued for the next run. Reproducing the fix
+against the same live comment confirmed its value directly: on retry, the model made a second,
+different wrong guess, and the new check caught that one too.
+
+The tradeoff is explicit: a weekday named in an unrelated aside ("fixed the bug reported on
+Wednesday") could cause a correct attribution to be rejected. That costs little. The alternative,
+ever accepting a date that contradicts what the text itself claims, is the more expensive failure,
+consistent with the same asymmetry that shapes the backdating limits in D10.
 
 ## Model selection for attribution (D8)
 
