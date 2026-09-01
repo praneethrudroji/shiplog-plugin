@@ -131,6 +131,7 @@ taken from a timestamp.
 | `/shiplog-setup` | Configure sources, calendar, schedule, standup. Add `--reconfigure` to change existing settings |
 | `/shiplog-sync` | Sync now instead of waiting for tonight. Useful right before a standup or review |
 | `/shiplog-status` | Last sync per source, event counts, backlog size, whether the nightly job is registered |
+| `/shiplog-standup` | Show the standup summary right now, whether or not it already ran today |
 
 `/shiplog-sync` takes the same flags as the underlying script: `--dry-run` to check credentials
 without writing, `--source github` to limit it, `--since 2026-01-01` to backfill further, and
@@ -176,6 +177,11 @@ Set it in `~/.shiplog/config.json`:
 `range` can be `last_working_day`, `last_week`, or `last_month`. It fires at most once per calendar
 day, and it costs nothing to run because it reads the local database directly with no model call.
 
+Missed it? Ask for it directly with `/shiplog-standup`, any time. It bypasses the once-a-day gate
+entirely and doesn't affect whether the automatic one still fires normally, so checking it on demand
+never costs you tomorrow's. Add a range to see something other than what's configured, for example
+`/shiplog-standup last_week`.
+
 ## What gets tracked
 
 | Source | Events |
@@ -204,7 +210,7 @@ Everything lives in `~/.shiplog/config.json` (mode 0600):
     "github": { "enabled": true, "useGhCli": true, "tokenEnv": "SHIPLOG_GITHUB_TOKEN", "orgs": [], "includeCommits": false },
     "azure_devops": { "enabled": true, "orgUrl": "", "projects": [], "tokenEnv": "SHIPLOG_ADO_PAT", "includeDeployments": true }
   },
-  "sync": { "lookbackHours": 48, "initialBackfillFrom": "fy-start", "maxBodyChars": 2000 },
+  "sync": { "lookbackHours": 48, "initialBackfillFrom": "last_24_months", "maxBodyChars": 2000 },
   "enrich": { "enabled": true, "model": "haiku", "fallbackModel": "sonnet", "confidenceFloor": 0.6, "batchSize": 50 },
   "backup": { "retentionDays": 30 },
   "schedule": { "type": "daily", "hour": 2, "minute": 0 },
@@ -214,8 +220,13 @@ Everything lives in `~/.shiplog/config.json` (mode 0600):
 
 A few worth knowing about:
 
-- `initialBackfillFrom` controls how far back the very first sync reaches. It defaults to the start of
-  your financial year and accepts any range expression.
+- `initialBackfillFrom` controls how far back the very first sync reaches. It defaults to the last
+  24 months and accepts any range expression (`fy-start` for your financial year, an explicit date,
+  and so on), but the actual first sync never reaches back further than 2 years no matter what this
+  is set to. GitHub's search API is rate-limited and Azure DevOps's work item query has no natural
+  lower bound, so an unbounded setting would risk turning a first sync into a very long one for
+  history that mostly won't get used. This limit only affects how far the *first* sync reaches; there
+  is no limit on how far back you can later ask a question.
 - `includeCommits` is off by default because GitHub's commit search is the most expensive call in the
   whole sync.
 - `enrich.model` is a capability tier, not a model id, so it keeps working when models change.

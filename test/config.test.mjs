@@ -169,15 +169,47 @@ test('only enabled sources are listed', () => {
   assert.deepEqual(enabledSources(cfg).sort(), ['github', 'jira']);
 });
 
-test('the first backfill defaults to the fiscal year start', () => {
-  const cfg = { ...defaultConfig(), timezone: 'Asia/Kolkata', fiscalYearStartMonth: 4 };
+test('the first backfill defaults to 2 years back', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC' };
+  const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
+  // last_24_months resolves via civil-month arithmetic to a local-midnight
+  // boundary, not the exact clock time 2 years ago, it lands within the
+  // millisecond-based cap, so the cap itself never has to engage here.
+  assert.equal(start, '2024-09-01T00:00:00.000Z');
+});
+
+test('fy-start is still available as an explicit opt-in setting', () => {
+  const cfg = { ...defaultConfig(), timezone: 'Asia/Kolkata', fiscalYearStartMonth: 4, sync: { initialBackfillFrom: 'fy-start' } };
   const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
   assert.equal(start, '2026-03-31T18:30:00.000Z');   // 1 April local midnight in IST
 });
 
-test('the backfill start accepts any range expression', () => {
+test('the backfill start accepts any range expression, within the 2-year cap', () => {
   const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: '2025-01-01' } };
   assert.equal(initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z')), '2025-01-01T00:00:00.000Z');
+});
+
+// The cap is a hard ceiling, not a config field: nothing the user sets, including a
+// future config default nobody has reconsidered, can make the first sync reach
+// back further than 2 years, since GitHub's search API is rate-limited and an
+// unbounded WIQL query has no natural lower bound.
+
+test('all_time is clamped to 2 years back, not left unbounded', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'all_time' } };
+  const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
+  assert.equal(start, '2024-08-31T12:00:00.000Z', 'must not resolve all the way to 1970');
+});
+
+test('an explicit date far older than 2 years is clamped the same way', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: '2015-01-01' } };
+  const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
+  assert.equal(start, '2024-08-31T12:00:00.000Z');
+});
+
+test('a setting already within the cap is never pulled forward', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'last_3_months' } };
+  const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
+  assert.equal(start, '2026-06-01T00:00:00.000Z', 'a shorter window must pass through untouched');
 });
 
 test('the sync window overlaps the previous watermark by lookbackHours', () => {
@@ -186,8 +218,8 @@ test('the sync window overlaps the previous watermark by lookbackHours', () => {
   assert.equal(start, '2026-08-29T00:00:00.000Z');
 });
 
-test('with no watermark the sync window falls back to the backfill start', () => {
-  const cfg = { ...defaultConfig(), timezone: 'UTC', fiscalYearStartMonth: 1 };
+test('with no watermark the sync window falls back to the (capped) backfill start', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'fy-start' }, fiscalYearStartMonth: 1 };
   const start = syncWindowStart(cfg, null, new Date('2026-08-31T12:00:00Z'));
   assert.equal(start, '2026-01-01T00:00:00.000Z');
 });

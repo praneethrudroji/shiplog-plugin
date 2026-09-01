@@ -33,6 +33,7 @@ rather than removed, so the project's history stays legible.
 | D20 | Standup summary computation | Local SQLite query, no LLM call | Route it through `claude -p` like attribution does | It fires on every terminal open; it must be instant and free, not wait on a model call |
 | D21 | Weekday cross-check on attribution | Deterministic: verify a claimed weekday against the resolved date's actual weekday | Trust the model's own date reasoning | Found live: the model resolved "Last Friday" to a Saturday at 0.95 confidence; a claimed weekday is a fact code can check with certainty and should not depend on the model getting right |
 | D22 | Date-range boundary comparison | Convert instants to local calendar dates using the real timezone | Slice the first 10 characters off the ISO instant string | Found live: for any timezone ahead of UTC, that slice recovers today's date instead of tomorrow's, silently excluding today's own events from every query |
+| D23 | Initial backfill depth | Default to 2 years back; hard cap at 2 years regardless of setting | Default to the fiscal year start (shallow); or leave the depth unbounded | Covers a full review and tenure cycle without risking a very long first sync; a cap protects against an unbounded or old-date setting even if the default is later changed |
 
 ## Ingest and query are separated by design (D5, D6, D7)
 
@@ -178,6 +179,32 @@ The lesson this leaves behind: a UTC-only test suite cannot catch a timezone-con
 UTC is the one timezone where slicing and converting happen to agree. The tests added for this fix
 deliberately exercise a real non-UTC timezone (Asia/Kolkata, where this was found) rather than adding
 more UTC coverage, since that is the only way this class of bug can actually fail.
+
+## Initial backfill is capped at 2 years, regardless of setting (D23)
+
+The original default, the start of the configured fiscal year, turns out to be too shallow in
+practice: for an April-start fiscal year, a sync run in early autumn only reaches back five or six
+months, not enough to answer a question spanning a full review cycle or a rolling tenure lookback.
+
+The other extreme, backfilling from account creation with no lower bound, has a real cost. GitHub's
+search API is rate-limited, and Azure DevOps's WIQL query has no natural lower bound of its own ,
+either one can turn a first sync into a very long one for years of history that mostly won't get
+cited in a standup or a review. Two years covers a full fiscal year and a full tenure-anniversary
+view without that risk.
+
+The cap is enforced as a ceiling on the *resolved* date, not as a restriction on what
+`initialBackfillFrom` can be set to. `all_time`, an old explicit date, or a future default nobody has
+reconsidered are all still accepted as configuration, and all still get clamped to 2 years back at
+the point the first sync actually runs (`initialBackfillStart` in `lib/config.mjs`). This is
+deliberately more defensive than validating the setting at config-load time: a validation check can
+be worked around by whatever sets the config next, including a later version of this file's own
+defaults, while a floor on the computed value cannot.
+
+This limits only how far back the *first* sync reaches. It has no bearing on how far back a later
+question can be asked; that remains unrestricted, bounded only by what a sync has actually collected.
+Commit history is unaffected by this change in practice, since `includeCommits` already defaults to
+`false`, GitHub's commit search is the single most expensive call available, and a 2-year backfill
+was exactly the scenario that default already existed to guard against.
 
 ## Model selection for attribution (D8)
 

@@ -48,7 +48,7 @@ test('.mcp.json declares the server with a portable command path', () => {
 });
 
 test('every skill file has valid frontmatter with a name matching its directory', () => {
-  const skills = ['shiplog-query', 'shiplog-setup', 'shiplog-status', 'shiplog-sync'];
+  const skills = ['shiplog-query', 'shiplog-setup', 'shiplog-status', 'shiplog-sync', 'shiplog-standup'];
   for (const dir of skills) {
     const text = readFileSync(join(ROOT, 'skills', dir, 'SKILL.md'), 'utf8');
     assert.match(text, /^---\n/, `${dir}: SKILL.md must start with frontmatter`);
