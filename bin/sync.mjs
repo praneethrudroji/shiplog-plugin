@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, createWriteStream } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync, createWriteStream, chmodSync } from 'node:fs';
 import { loadConfig, loadSecrets, resolveToken, enabledSources, syncWindowStart, paths } from '../lib/config.mjs';
 import { openDatabase, upsertEvents, getSyncState, setSyncState, startRun, finishRun } from '../lib/db.mjs';
 import { createHttpClient, AuthError } from '../lib/http.mjs';
@@ -141,7 +141,15 @@ async function main() {
   // 0700 so the data directory itself is not listable by other local users.
   mkdirSync(p.home, { recursive: true, mode: 0o700 });
   mkdirSync(p.logs, { recursive: true, mode: 0o700 });
-  const logStream = createWriteStream(p.logs ? `${p.logs}/sync.log` : '/dev/null', { flags: 'a' });
+  // A source's error text can include repo/org/project names, so the log gets the
+  // same 0600 treatment as the database. `mode` on createWriteStream only applies
+  // when the file doesn't already exist yet, so a pre-existing log (from before
+  // this was added, or created some other way) is chmod'd explicitly too.
+  const logPath = p.logs ? `${p.logs}/sync.log` : '/dev/null';
+  if (p.logs && existsSync(logPath)) {
+    try { chmodSync(logPath, 0o600); } catch { /* best effort */ }
+  }
+  const logStream = createWriteStream(logPath, { flags: 'a', mode: 0o600 });
   const log = createLogger({
     write: (line) => { logStream.write(line); process.stderr.write(line); },
   });
