@@ -163,7 +163,49 @@ test('--now respects an explicit --range override', (t) => {
   assert.match(out, /Fix rounding bug|no tracked activity/);
 });
 
-test('--now reports a real error when standup is disabled, rather than staying silent', (t) => {
+// Regression: /shiplog-standup last_week (SKILL.md's documented invocation) becomes
+// `standup.mjs --now last_week`, a bare positional token with no --range in front.
+// This previously hit `unknown flag: last_week` and exited 1, breaking the exact
+// example the README shows.
+test('a bare positional range argument works the same as --range', (t) => {
+  const home = seededHome(t);
+  const positional = runOnDemand(home, ['last_month']);
+  const explicit = runOnDemand(home, ['--range', 'last_month']);
+  assert.equal(positional, explicit);
+});
+
+// Regression: --range consumed whatever came next unconditionally, so
+// `--range --now` silently left `now: false` (falling through to the day-gated
+// hook path) instead of failing loudly on the missing value.
+test('--range with no value, or another flag right after it, is a clear error', (t) => {
+  const home = seededHome(t);
+  assert.throws(
+    () => execFileSync(process.execPath, [HOOK, '--range', '--now'], { env: { ...process.env, SHIPLOG_HOME: home }, stdio: 'pipe' }),
+    /--range requires a value/,
+  );
+  assert.throws(
+    () => execFileSync(process.execPath, [HOOK, '--now', '--range'], { env: { ...process.env, SHIPLOG_HOME: home }, stdio: 'pipe' }),
+    /--range requires a value/,
+  );
+});
+
+test('a positional range and an explicit --range together are rejected as ambiguous', (t) => {
+  const home = seededHome(t);
+  assert.throws(
+    () => execFileSync(process.execPath, [HOOK, '--now', 'last_week', '--range', 'last_month'], { env: { ...process.env, SHIPLOG_HOME: home }, stdio: 'pipe' }),
+    /given twice/,
+  );
+});
+
+// Regression: an empty --range value must fall back to the configured default,
+// not be treated as a literal (invalid) range expression.
+test('an empty --range value falls back to the configured default rather than erroring', (t) => {
+  const home = seededHome(t);
+  const out = runOnDemand(home, ['--range', '']);
+  assert.match(out, /Fix rounding bug/);
+});
+
+test('--now still runs when standup is disabled, since disabled only gates the automatic hook', (t) => {
   const home = seededHome(t, { standup: { enabled: false, range: 'last_working_day' } });
   // Disabled only gates the automatic hook; an explicit --now request still runs
   // (the user asked directly), using last_working_day since standup.range is unset
