@@ -100,6 +100,57 @@ test('a malformed or missing date is rejected', () => {
   assert.equal(validateAttribution({ effective_date: '30/08/2026', confidence: 0.9 }, { ...base, kind: 'explicit' }).ok, false);
 });
 
+// Regression: a live sync resolved "Last Friday" (posted Tuesday 2026-09-01) to
+// 2026-08-29, which is a Saturday — accepted at 0.95 confidence by every other
+// guard. A claimed weekday is a fact code can check with certainty; it must not
+// depend on the model getting it right.
+test('a claimed weekday that does not match the resolved date is rejected', () => {
+  const attr = { effective_date: '2026-08-29', confidence: 0.95 }; // a Saturday
+  const result = validateAttribution(attr, {
+    ...base, kind: 'relative', postedDate: '2026-09-01', today: '2026-09-01',
+    text: 'Last Friday I noticed a small typo, fixed now.',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /says "Friday" but 2026-08-29 is a Saturday/);
+});
+
+test('a claimed weekday that does match the resolved date is accepted', () => {
+  const attr = { effective_date: '2026-08-28', confidence: 0.95 }; // the actual Friday
+  const result = validateAttribution(attr, {
+    ...base, kind: 'relative', postedDate: '2026-09-01', today: '2026-09-01',
+    text: 'Last Friday I noticed a small typo, fixed now.',
+  });
+  assert.equal(result.ok, true);
+});
+
+test('weekday abbreviations are recognized too', () => {
+  const attr = { effective_date: '2026-08-29', confidence: 0.9 }; // a Saturday
+  const result = validateAttribution(attr, {
+    ...base, kind: 'relative', postedDate: '2026-09-01', today: '2026-09-01', text: 'done last Fri',
+  });
+  assert.equal(result.ok, false);
+  assert.match(result.reason, /Friday/);
+});
+
+test('text with no weekday mention is unaffected by the weekday check', () => {
+  const attr = { effective_date: '2026-08-30', confidence: 0.9 };
+  const result = validateAttribution(attr, { ...base, kind: 'explicit', text: 'finished this on 22/01/2026' });
+  assert.equal(result.ok, true);
+});
+
+test('a weekday mentioned in an unrelated context still gets checked (documented tradeoff)', () => {
+  // "Wednesday" could describe an unrelated event mentioned in passing rather than
+  // the work itself, but treating any weekday mention as a hard fact to verify is
+  // the safer failure mode here: it can reject a correct attribution in a false-
+  // positive case, but it can never accept a self-contradictory one.
+  const attr = { effective_date: '2026-08-31', confidence: 0.9 }; // a Monday
+  const result = validateAttribution(attr, {
+    ...base, kind: 'relative', postedDate: '2026-09-01', today: '2026-09-01',
+    text: 'Fixed the issue reported on Wednesday.',
+  });
+  assert.equal(result.ok, false);
+});
+
 test('an unknown kind falls back to the strictest (partial) limit', () => {
   const attr = { effective_date: '2026-01-01', confidence: 0.9 };
   const result = validateAttribution(attr, { ...base, kind: 'made_up_kind' });
@@ -191,18 +242,24 @@ test('an id the model invents (not among those asked about) is ignored, not writ
 
 test('multiple events are resolved from a single batched call', async (t) => {
   const db = tempDb(t);
+  // Distinct occurred_at values, so pendingEnrichment's ORDER BY has no tie to
+  // break arbitrarily — with identical timestamps, which row comes back "first"
+  // is undefined, and a fixture that maps dates positionally rather than by id
+  // would attach the wrong date to the wrong event without either failing, if
+  // nothing ever cross-checks the date against the text (as now happens here).
   upsertEvents(db, [
-    ev({ external_id: 'a', body: 'Yesterday I finished the retry logic.' }),
-    ev({ external_id: 'b', body: 'Wrapped this up last Friday.' }),
+    ev({ external_id: 'a', body: 'Yesterday I finished the retry logic.', occurred_at: '2026-08-31T09:00:00.000Z' }),
+    ev({ external_id: 'b', body: 'Wrapped this up last Friday.', occurred_at: '2026-08-31T10:00:00.000Z' }),
   ]);
-  const [first, second] = pendingEnrichment(db);
+  const pending = pendingEnrichment(db);
+  const idFor = (bodyFragment) => pending.find((r) => r.body.includes(bodyFragment)).id;
   let callCount = 0;
 
   const runClaude = async () => {
     callCount += 1;
     return JSON.stringify([
-      { event_id: first.id, effective_date: '2026-08-30', confidence: 0.9 },
-      { event_id: second.id, effective_date: '2026-08-28', confidence: 0.85 },
+      { event_id: idFor('Yesterday'), effective_date: '2026-08-30', confidence: 0.9 },
+      { event_id: idFor('last Friday'), effective_date: '2026-08-28', confidence: 0.85 },
     ]);
   };
 
