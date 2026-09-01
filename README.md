@@ -309,6 +309,18 @@ which is what led to the deterministic weekday check described in
 
 ## Roadmap
 
+**Next up:**
+
+- **CI pipeline.** Run `node --test test/` automatically on every push and pull request via GitHub
+  Actions, so a regression is caught before merge rather than by whoever runs the suite next. Given
+  the suite is offline and dependency-free, this should be close to a direct lift of the local command
+  into a workflow file.
+- **Commit and merge rules.** Branch protection requiring the CI check to pass before merging to
+  `main`, and a look at whether a commit message convention is worth enforcing given how this project's
+  commit messages are already used as the detailed record of what changed and why.
+
+**After that:**
+
 - **Jira** (Cloud and Server). Deliberately left out of this release. The source module pattern that
   GitHub and Azure DevOps established carries over directly.
 - Linux cron support in the scheduler installer.
