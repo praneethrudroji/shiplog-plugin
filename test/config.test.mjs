@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   defaultConfig, validateConfig, loadConfig, loadSecrets, resolveToken, ghAuthToken,
   assertSecureMode, enabledSources, initialBackfillStart, syncWindowStart, detectDateFormat,
+  assertSupportedNode,
 } from '../lib/config.mjs';
 
 function tempHome(t, { config, secrets, configMode = 0o600, secretsMode = 0o600 } = {}) {
@@ -222,4 +223,21 @@ test('with no watermark the sync window falls back to the (capped) backfill star
   const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'fy-start' }, fiscalYearStartMonth: 1 };
   const start = syncWindowStart(cfg, null, new Date('2026-08-31T12:00:00Z'));
   assert.equal(start, '2026-01-01T00:00:00.000Z');
+});
+
+test('assertSupportedNode accepts the documented floor and anything newer', () => {
+  assert.doesNotThrow(() => assertSupportedNode('22.0.0'));
+  assert.doesNotThrow(() => assertSupportedNode('24.1.0'));
+  assert.doesNotThrow(() => assertSupportedNode('26.8.1'));
+});
+
+test('assertSupportedNode rejects anything older, with a clear reason', () => {
+  assert.throws(() => assertSupportedNode('20.11.0'), /Node\.js 22 or later \(found 20\.11\.0\)/);
+  assert.throws(() => assertSupportedNode('18.19.0'), /node:sqlite/);
+});
+
+test('the running test process itself satisfies the floor', () => {
+  // The most direct check there is: if this assertion fails, the suite could not
+  // have started at all, since lib/config.mjs runs this at import time.
+  assert.doesNotThrow(() => assertSupportedNode());
 });

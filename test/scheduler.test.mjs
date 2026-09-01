@@ -87,6 +87,24 @@ test('--print produces both files without writing or loading anything', (t) => {
   assert.equal(existsSync(join(home, 'run_sync.sh')), false, 'nothing should be written');
 });
 
+// Regression: dryRun previously hit the platform guard before its own early return,
+// so --print (which only renders strings, touching no filesystem) failed outright
+// on any non-darwin CI runner. It must work everywhere, since nothing about it is
+// platform-specific.
+test('--print works on a non-macOS platform too, since it only renders strings', (t) => {
+  const home = tempHome(t);
+  const original = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+  t.after(() => Object.defineProperty(process, 'platform', original));
+
+  const result = installScheduler({
+    shiplogHome: home, pluginRoot: '/plugins/shiplog', hour: 2, minute: 0, dryRun: true,
+    load: () => { throw new Error('must not load during a dry run'); },
+  });
+  assert.equal(result.dryRun, true);
+  assert.ok(result.plist.includes('com.shiplog.sync'));
+});
+
 test('install writes the wrapper 0700 and the plist, then loads it', { skip: process.platform !== 'darwin' }, (t) => {
   const shiplog = tempHome(t);
   const fakeHome = tempHome(t, 'shiplog-fakehome-');
@@ -149,7 +167,7 @@ test('agentStatus reports not-installed cleanly', () => {
   assert.deepEqual(agentStatus({ exec: () => ({ ok: false, out: 'not found' }), uid: 501 }), { installed: false });
 });
 
-test('uninstall removes the plist and the wrapper', (t) => {
+test('uninstall removes the plist and the wrapper', { skip: process.platform !== 'darwin' }, (t) => {
   const shiplog = tempHome(t);
   const fakeHome = tempHome(t, 'shiplog-fakehome-');
   installScheduler({
