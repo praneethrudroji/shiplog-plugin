@@ -1,14 +1,17 @@
 {
-  "SessionStart": [
-    {
-      "matcher": "startup",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/standup.mjs",
-          "timeout": 15
-        }
-      ]
-    }
-  ]
+  "description": "Runs a local, deterministic standup summary once per calendar day on session start.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/standup.mjs",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
 }

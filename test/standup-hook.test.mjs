@@ -9,9 +9,20 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase, upsertEvent } from '../lib/db.mjs';
 import { defaultConfig } from '../lib/config.mjs';
+import { resolveRange } from '../lib/ranges.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HERE, '..', 'bin', 'standup.mjs');
+
+// bin/standup.mjs always reads the real wall clock (it must, in production), so a
+// test that seeds a hardcoded date and expects it to land in "last_working_day" is
+// only correct on the day it was written. Ask the same calendar engine the hook
+// itself uses what "last working day" resolves to right now, so this test is
+// correct on any day it runs.
+function lastWorkingDayInstant() {
+  const range = resolveRange('last_working_day', { now: new Date(), timeZone: 'UTC', fiscalYearStartMonth: 4 });
+  return new Date(`${range.startDate}T09:00:00.000Z`).toISOString();
+}
 
 function seededHome(t, { standup = { enabled: true, range: 'last_working_day' }, withEvent = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'shiplog-hook-'));
@@ -29,7 +40,7 @@ function seededHome(t, { standup = { enabled: true, range: 'last_working_day' },
     upsertEvent(db, {
       source: 'github', event_type: 'pr_merged', external_id: 'a', project: 'octo',
       title: 'Fix rounding bug', url: 'https://github.com/octo/repo/pull/9',
-      occurred_at: '2026-08-28T09:00:00.000Z', raw_json: {}, synced_at: '2026-08-31T22:00:00.000Z',
+      occurred_at: lastWorkingDayInstant(), raw_json: {}, synced_at: new Date().toISOString(),
     });
   }
   db.close();
