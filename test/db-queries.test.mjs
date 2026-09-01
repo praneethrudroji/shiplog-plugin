@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase, upsertEvents, getStats, queryEvents, listProjects, getSyncHealth, setSyncState } from '../lib/db.mjs';
+import { resolveRange } from '../lib/ranges.mjs';
 
 function tempDb(t) {
   const dir = mkdtempSync(join(tmpdir(), 'shiplog-queries-'));
@@ -154,4 +155,86 @@ test('getSyncHealth counts the attribution backlog', (t) => {
     ev({ external_id: 'p3', needs_enrichment: 0 }),
   ]);
   assert.equal(getSyncHealth(db).pendingEnrichment, 2);
+});
+
+// Regression: found live, running the plugin against a real IST account. A range
+// ending "today" has an exclusive `end` that is local midnight of *tomorrow* —
+// but for any positive UTC offset, that instant's own UTC calendar date is still
+// today. Slicing the raw instant string recovered today's date as the exclusive
+// bound, silently excluding today's own events from every query. This only
+// reproduces with a real timezone conversion in play, so these tests go through
+// resolveRange exactly as the MCP tools do, rather than hand-building boundaries.
+
+test("an event effective today is included in a range ending today, in a timezone ahead of UTC", (t) => {
+  const db = tempDb(t);
+  // 2026-09-01T12:00:00Z is 17:30 IST — solidly "today" in Kolkata, matching the
+  // live case (IST, UTC+5:30).
+  const now = new Date('2026-09-01T12:00:00Z');
+  upsertEvents(db, [ev({ external_id: 'today-event', occurred_at: '2026-09-01T09:00:00Z' })]);
+
+  const range = resolveRange('today', { now, timeZone: 'Asia/Kolkata', fiscalYearStartMonth: 4 });
+  const stats = getStats(db, { start: range.start, end: range.end, timezone: 'Asia/Kolkata' });
+  assert.equal(stats.total, 1, 'the event happened today in IST and must be counted');
+
+  const rows = queryEvents(db, { start: range.start, end: range.end, timezone: 'Asia/Kolkata' });
+  assert.equal(rows.length, 1);
+});
+
+test('the same case with timezone left at the UTC default reproduces the original bug', (t) => {
+  // Documents why the fix has to be the timezone conversion, not just "use
+  // resolveRange's boundaries" — passing the *correct* boundaries with the *wrong*
+  // (default) timezone for interpreting them still drops the event, because the
+  // instant genuinely is ambiguous without knowing which zone it's local-midnight in.
+  const db = tempDb(t);
+  const now = new Date('2026-09-01T12:00:00Z');
+  upsertEvents(db, [ev({ external_id: 'today-event', occurred_at: '2026-09-01T09:00:00Z' })]);
+
+  const range = resolveRange('today', { now, timeZone: 'Asia/Kolkata', fiscalYearStartMonth: 4 });
+  const stats = getStats(db, { start: range.start, end: range.end }); // timezone defaults to UTC
+  assert.equal(stats.total, 0, 'without the real timezone, the end bound is misread as excluding today');
+});
+
+test('last_4_weeks in IST includes an event from earlier today', (t) => {
+  // The exact scenario that surfaced this: a plain "last 4 weeks" query, in the
+  // afternoon IST, missing same-day activity.
+  const db = tempDb(t);
+  const now = new Date('2026-09-01T17:18:08Z'); // matches the real timestamp this bug was found at
+  upsertEvents(db, [
+    ev({ external_id: 'opened', event_type: 'pr_opened', occurred_at: '2026-09-01T17:13:31Z' }),
+    ev({ external_id: 'merged', event_type: 'pr_merged', occurred_at: '2026-09-01T17:13:58Z' }),
+    ev({ external_id: 'commented', event_type: 'pr_comment', occurred_at: '2026-09-01T17:13:54Z' }),
+  ]);
+
+  const range = resolveRange('last_4_weeks', { now, timeZone: 'Asia/Kolkata', fiscalYearStartMonth: 4 });
+  const stats = getStats(db, { start: range.start, end: range.end, timezone: 'Asia/Kolkata' });
+  assert.equal(stats.total, 3, 'all three of today\'s events must be counted, not just the attributed one');
+});
+
+test('a UTC-behind timezone (e.g. US Eastern) was never affected, and stays correct', (t) => {
+  const db = tempDb(t);
+  const now = new Date('2026-09-01T22:00:00Z'); // 18:00 Eastern (EDT, UTC-4) — still "today" there
+  upsertEvents(db, [ev({ external_id: 'today-event', occurred_at: '2026-09-01T21:00:00Z' })]);
+
+  const range = resolveRange('today', { now, timeZone: 'America/New_York', fiscalYearStartMonth: 4 });
+  const stats = getStats(db, { start: range.start, end: range.end, timezone: 'America/New_York' });
+  assert.equal(stats.total, 1);
+});
+
+test('listProjects respects timezone the same way', (t) => {
+  const db = tempDb(t);
+  const now = new Date('2026-09-01T12:00:00Z');
+  upsertEvents(db, [ev({ external_id: 'today-event', project: 'octo', occurred_at: '2026-09-01T09:00:00Z' })]);
+
+  const range = resolveRange('today', { now, timeZone: 'Asia/Kolkata', fiscalYearStartMonth: 4 });
+  const rows = listProjects(db, { start: range.start, end: range.end, timezone: 'Asia/Kolkata' });
+  assert.deepEqual(rows.map((r) => r.project), ['octo']);
+});
+
+test('a bare YYYY-MM-DD boundary is treated as an already-local date, not re-converted', (t) => {
+  const db = tempDb(t);
+  upsertEvents(db, [ev({ external_id: 'x', occurred_at: '2026-08-15T09:00:00Z' })]);
+  // A bare date must mean exactly that date regardless of timezone, since it carries
+  // no time component to convert.
+  const stats = getStats(db, { start: '2026-08-01', end: '2026-09-01', timezone: 'Asia/Kolkata' });
+  assert.equal(stats.total, 1);
 });

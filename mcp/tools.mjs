@@ -106,17 +106,18 @@ export function createToolHandlers({ cfg, getDb }) {
     },
 
     get_stats({ start, end, group_by = 'event_type' }) {
-      return getStats(requireDb(), { start, end, groupBy: group_by });
+      return getStats(requireDb(), { start, end, groupBy: group_by, timezone: cfg?.timezone });
     },
 
     query_events({ start, end, sources, event_types, project, text_search, limit }) {
       return queryEvents(requireDb(), {
         start, end, sources, eventTypes: event_types, project, textSearch: text_search, limit,
+        timezone: cfg?.timezone,
       });
     },
 
     list_projects({ start, end } = {}) {
-      return listProjects(requireDb(), start && end ? { start, end } : {});
+      return listProjects(requireDb(), start && end ? { start, end, timezone: cfg?.timezone } : {});
     },
 
     get_sync_health() {

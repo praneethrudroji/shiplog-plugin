@@ -32,6 +32,7 @@ rather than removed, so the project's history stays legible.
 | D19 | Standup summary trigger | A deterministic `SessionStart` hook, gated to once per calendar day | An MCP tool the user invokes manually | The point is that it appears without being asked, which is how a standup summary is actually used |
 | D20 | Standup summary computation | Local SQLite query, no LLM call | Route it through `claude -p` like attribution does | It fires on every terminal open; it must be instant and free, not wait on a model call |
 | D21 | Weekday cross-check on attribution | Deterministic: verify a claimed weekday against the resolved date's actual weekday | Trust the model's own date reasoning | Found live: the model resolved "Last Friday" to a Saturday at 0.95 confidence; a claimed weekday is a fact code can check with certainty and should not depend on the model getting right |
+| D22 | Date-range boundary comparison | Convert instants to local calendar dates using the real timezone | Slice the first 10 characters off the ISO instant string | Found live: for any timezone ahead of UTC, that slice recovers today's date instead of tomorrow's, silently excluding today's own events from every query |
 
 ## Ingest and query are separated by design (D5, D6, D7)
 
@@ -150,6 +151,33 @@ The tradeoff is explicit: a weekday named in an unrelated aside ("fixed the bug 
 Wednesday") could cause a correct attribution to be rejected. That costs little. The alternative,
 ever accepting a date that contradicts what the text itself claims, is the more expensive failure,
 consistent with the same asymmetry that shapes the backdating limits in D10.
+
+## Range boundaries are timezone-converted, not sliced (D22)
+
+Asking a plain "what did I work on recently" question against a live account surfaced a second,
+more serious bug in the same session. `get_stats` reported one event when three had actually
+happened. Nothing had failed, no error was raised. The count was just quietly wrong.
+
+`resolveRange`'s exclusive `end` boundary is the UTC instant of local midnight on the day *after*
+the requested range, computed correctly using civil-date arithmetic in the configured timezone. The
+query layer, however, recovered a date to compare against by slicing the first ten characters off
+that instant's ISO string. For any timezone with a positive UTC offset, IST among them, that instant
+still carries *today's* UTC calendar date, not tomorrow's, since the local clock has not yet rolled
+over in UTC terms. Slicing therefore reproduced today's own date as the exclusive upper bound, and a
+strict `<` comparison excluded every one of today's events, in every query, every time, for anyone in
+that half of the world's timezones. A timezone behind UTC was never affected, which is presumably
+why this shipped in the first place: it worked correctly for every UTC-based test in the suite,
+because a UTC offset of zero can never expose the gap between "sliced date" and "converted date".
+
+The fix converts the instant into a calendar date using the actual configured timezone
+(`zonedParts`, the same primitive `resolveRange` itself is built on) rather than reading it off the
+raw string. A bare `YYYY-MM-DD` boundary, which some callers legitimately pass instead of a full
+instant, is left untouched, since it is already an unambiguous local date with nothing to convert.
+
+The lesson this leaves behind: a UTC-only test suite cannot catch a timezone-conversion bug, because
+UTC is the one timezone where slicing and converting happen to agree. The tests added for this fix
+deliberately exercise a real non-UTC timezone (Asia/Kolkata, where this was found) rather than adding
+more UTC coverage, since that is the only way this class of bug can actually fail.
 
 ## Model selection for attribution (D8)
 
