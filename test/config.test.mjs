@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  defaultConfig, validateConfig, loadConfig, loadSecrets, resolveToken,
+  defaultConfig, validateConfig, loadConfig, loadSecrets, resolveToken, ghAuthToken,
   assertSecureMode, enabledSources, initialBackfillStart, syncWindowStart, detectDateFormat,
 } from '../lib/config.mjs';
 
@@ -111,7 +111,11 @@ test('a missing secrets file is not an error', (t) => {
 });
 
 test('the secrets file takes precedence over the ambient environment', () => {
+  // useGhCli defaults true and is checked first; disabled here so this test
+  // exercises the tokenEnv path specifically, regardless of whether gh happens to
+  // be installed and logged in on the machine running the suite.
   const cfg = defaultConfig();
+  cfg.sources.github.useGhCli = false;
   process.env.SHIPLOG_GITHUB_TOKEN = 'from-environment';
   try {
     assert.equal(resolveToken(cfg, 'github', {}), 'from-environment');
@@ -119,6 +123,39 @@ test('the secrets file takes precedence over the ambient environment', () => {
   } finally {
     delete process.env.SHIPLOG_GITHUB_TOKEN;
   }
+});
+
+test('ghAuthToken trims stdout and returns null if gh fails or is missing', () => {
+  assert.equal(ghAuthToken(() => 'gho_realtoken\n'), 'gho_realtoken');
+  assert.equal(ghAuthToken(() => { throw new Error('gh: command not found'); }), null);
+  assert.equal(ghAuthToken(() => ''), null, 'an empty token is treated the same as none');
+});
+
+test('with useGhCli on, gh auth token is tried before tokenEnv', () => {
+  const cfg = defaultConfig();
+  cfg.sources.github.useGhCli = true;
+  const secrets = { SHIPLOG_GITHUB_TOKEN: 'from-file' };
+
+  assert.equal(resolveToken(cfg, 'github', secrets, () => 'gho_fromgh'), 'gho_fromgh');
+  // gh not logged in (or not installed) falls back to the stored token, not null.
+  assert.equal(resolveToken(cfg, 'github', secrets, () => null), 'from-file');
+});
+
+test('with useGhCli off, gh is never consulted even if injected', () => {
+  const cfg = defaultConfig();
+  cfg.sources.github.useGhCli = false;
+  let called = false;
+  resolveToken(cfg, 'github', { SHIPLOG_GITHUB_TOKEN: 'from-file' }, () => { called = true; return 'gho_x'; });
+  assert.equal(called, false);
+});
+
+test('useGhCli only affects github, not other sources', () => {
+  const cfg = defaultConfig();
+  cfg.sources.github.useGhCli = true;
+  let called = false;
+  const token = resolveToken(cfg, 'azure_devops', { SHIPLOG_ADO_PAT: 'ado-token' }, () => { called = true; return 'gho_x'; });
+  assert.equal(called, false, "azure_devops must not consult gh's token");
+  assert.equal(token, 'ado-token');
 });
 
 test('assertSecureMode ignores files that do not exist', () => {
