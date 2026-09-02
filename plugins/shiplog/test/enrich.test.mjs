@@ -101,7 +101,7 @@ test('a malformed or missing date is rejected', () => {
 });
 
 // Regression: a live sync resolved "Last Friday" (posted Tuesday 2026-09-01) to
-// 2026-08-29, which is a Saturday — accepted at 0.95 confidence by every other
+// 2026-08-29, which is a Saturday, accepted at 0.95 confidence by every other
 // guard. A claimed weekday is a fact code can check with certainty; it must not
 // depend on the model getting it right.
 test('a claimed weekday that does not match the resolved date is rejected', () => {
@@ -243,7 +243,7 @@ test('an id the model invents (not among those asked about) is ignored, not writ
 test('multiple events are resolved from a single batched call', async (t) => {
   const db = tempDb(t);
   // Distinct occurred_at values, so pendingEnrichment's ORDER BY has no tie to
-  // break arbitrarily — with identical timestamps, which row comes back "first"
+  // break arbitrarily: with identical timestamps, which row comes back "first"
   // is undefined, and a fixture that maps dates positionally rather than by id
   // would attach the wrong date to the wrong event without either failing, if
   // nothing ever cross-checks the date against the text (as now happens here).

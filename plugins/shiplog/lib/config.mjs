@@ -89,7 +89,7 @@ export function defaultConfig() {
     },
     backup: { retentionDays: 30 },
     schedule: { type: 'daily', hour: 2, minute: 0 },
-    standup: { enabled: false, range: 'last_working_day' },
+    standup: { enabled: false, range: 'since_last_working_day' },
   };
 }
 
@@ -152,7 +152,7 @@ export function validateConfig(cfg) {
   if (cfg.enrich?.enabled && (typeof floor !== 'number' || floor < 0 || floor > 1)) {
     fail('enrich.confidenceFloor must be a number between 0 and 1');
   }
-  const standupRanges = ['last_working_day', 'last_week', 'last_month'];
+  const standupRanges = ['since_last_working_day', 'last_working_day', 'last_week', 'last_month'];
   if (cfg.standup?.enabled && !standupRanges.includes(cfg.standup.range)) {
     fail(`standup.range must be one of ${standupRanges.join(', ')}`);
   }

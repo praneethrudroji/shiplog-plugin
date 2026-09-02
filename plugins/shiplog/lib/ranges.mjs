@@ -4,7 +4,7 @@
 const MS_PER_DAY = 86_400_000;
 
 const NAMED = new Set([
-  'today', 'yesterday', 'last_working_day',
+  'today', 'yesterday', 'last_working_day', 'since_last_working_day',
   'this_week', 'last_week',
   'this_month', 'last_month',
   'this_quarter', 'last_quarter',
@@ -184,6 +184,9 @@ export function resolveRange(expression, opts = {}) {
 
   let bounds = null;
   let label = null;
+  // Declared out here rather than inside the named-range branch so the return can
+  // report it. Stays null for explicit dates and ISO ranges, which have no key.
+  let key = null;
 
   // Explicit forms are matched before normalization, which would eat the hyphens.
   const explicitRange = raw.split('..');
@@ -203,7 +206,7 @@ export function resolveRange(expression, opts = {}) {
   }
 
   if (!bounds) {
-    const key = raw.toLowerCase().replace(/[\s-]+/g, '_').replace(/_+/g, '_');
+    key = raw.toLowerCase().replace(/[\s-]+/g, '_').replace(/_+/g, '_');
 
     const lastN = /^last_(\d+)_(day|week|month)s?$/.exec(key);
     const fyLabel = /^fy_?(\d{4})$/.exec(key);
@@ -239,6 +242,17 @@ export function resolveRange(expression, opts = {}) {
           const d = lastWorkingDayBefore(todayCivil, weekendDays);
           bounds = { start: d, end: addDays(d, 1) };
           label = 'last working day';
+          break;
+        }
+        // The standup range. Unlike last_working_day, which is that one day and
+        // stops, this runs from the last working day through the end of today, so
+        // today's own work is included. A standup is "what I did last, and what
+        // I'm on now", and the single-day range can only ever answer the first
+        // half of that.
+        case 'since_last_working_day': {
+          const d = lastWorkingDayBefore(todayCivil, weekendDays);
+          bounds = { start: d, end: addDays(todayCivil, 1) };
+          label = 'since last working day';
           break;
         }
         case 'this_week': {
@@ -305,6 +319,9 @@ export function resolveRange(expression, opts = {}) {
 
   const endInclusive = addDays(bounds.end, -1);
   return {
+    // The normalized expression this resolved from, so a caller can branch on which
+    // range it got without parsing the human-readable label back apart.
+    key,
     start: zonedMidnightUTC(bounds.start, timeZone).toISOString(),
     end: zonedMidnightUTC(bounds.end, timeZone).toISOString(),
     startDate: fmtCivil(bounds.start),

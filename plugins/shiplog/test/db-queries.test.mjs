@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDatabase, upsertEvents, getStats, queryEvents, listProjects, getSyncHealth, setSyncState } from '../lib/db.mjs';
+import { openDatabase, upsertEvents, getStats, queryEvents, listProjects, getSyncHealth, setSyncState, setAttribution } from '../lib/db.mjs';
 import { resolveRange } from '../lib/ranges.mjs';
 
 function tempDb(t) {
@@ -158,7 +158,7 @@ test('getSyncHealth counts the attribution backlog', (t) => {
 });
 
 // Regression: found live, running the plugin against a real IST account. A range
-// ending "today" has an exclusive `end` that is local midnight of *tomorrow* —
+// ending "today" has an exclusive `end` that is local midnight of *tomorrow*,
 // but for any positive UTC offset, that instant's own UTC calendar date is still
 // today. Slicing the raw instant string recovered today's date as the exclusive
 // bound, silently excluding today's own events from every query. This only
@@ -167,7 +167,7 @@ test('getSyncHealth counts the attribution backlog', (t) => {
 
 test("an event effective today is included in a range ending today, in a timezone ahead of UTC", (t) => {
   const db = tempDb(t);
-  // 2026-09-01T12:00:00Z is 17:30 IST — solidly "today" in Kolkata, matching the
+  // 2026-09-01T12:00:00Z is 17:30 IST, solidly "today" in Kolkata, matching the
   // live case (IST, UTC+5:30).
   const now = new Date('2026-09-01T12:00:00Z');
   upsertEvents(db, [ev({ external_id: 'today-event', occurred_at: '2026-09-01T09:00:00Z' })]);
@@ -182,7 +182,7 @@ test("an event effective today is included in a range ending today, in a timezon
 
 test('the same case with timezone left at the UTC default reproduces the original bug', (t) => {
   // Documents why the fix has to be the timezone conversion, not just "use
-  // resolveRange's boundaries" — passing the *correct* boundaries with the *wrong*
+  // resolveRange's boundaries": passing the *correct* boundaries with the *wrong*
   // (default) timezone for interpreting them still drops the event, because the
   // instant genuinely is ambiguous without knowing which zone it's local-midnight in.
   const db = tempDb(t);
@@ -212,7 +212,7 @@ test('last_4_weeks in IST includes an event from earlier today', (t) => {
 
 test('a UTC-behind timezone (e.g. US Eastern) was never affected, and stays correct', (t) => {
   const db = tempDb(t);
-  const now = new Date('2026-09-01T22:00:00Z'); // 18:00 Eastern (EDT, UTC-4) — still "today" there
+  const now = new Date('2026-09-01T22:00:00Z'); // 18:00 Eastern (EDT, UTC-4), still "today" there
   upsertEvents(db, [ev({ external_id: 'today-event', occurred_at: '2026-09-01T21:00:00Z' })]);
 
   const range = resolveRange('today', { now, timeZone: 'America/New_York', fiscalYearStartMonth: 4 });
@@ -237,4 +237,74 @@ test('a bare YYYY-MM-DD boundary is treated as an already-local date, not re-con
   // no time component to convert.
   const stats = getStats(db, { start: '2026-08-01', end: '2026-09-01', timezone: 'Asia/Kolkata' });
   assert.equal(stats.total, 1);
+});
+
+// Regression, found while building the standup's per-day sections. D22 fixed the
+// timezone handling of range *bounds*; the per-row date a caller groups and displays
+// by was still the UTC one, from substr(occurred_at, 1, 10) in SQL. For anyone east
+// of UTC that files an evening event under the previous day, silently.
+//
+// This is not confined to the standup: get_stats(group_by: "day") and query_events
+// are both exposed over MCP, so the wrong day reached user-facing answers too.
+
+test('the reported date of an evening event is the local day, not the UTC one', (t) => {
+  const db = tempDb(t);
+  // 22:30 UTC is already 08:30 the next morning in Sydney (UTC+10, no DST in August).
+  upsertEvents(db, [ev({ external_id: 'evening', occurred_at: '2026-08-30T22:30:00.000Z' })]);
+
+  const range = { start: '2026-08-28', end: '2026-09-01' };
+
+  const utc = queryEvents(db, { ...range, timezone: 'UTC' });
+  assert.equal(utc[0].effective_date, '2026-08-30', 'in UTC it genuinely is the 30th');
+
+  const sydney = queryEvents(db, { ...range, timezone: 'Australia/Sydney' });
+  assert.equal(sydney[0].effective_date, '2026-08-31', 'but in Sydney that moment is the 31st');
+});
+
+test('the same correction applies to India, the half-hour offset case', (t) => {
+  const db = tempDb(t);
+  // 19:30 UTC is 01:00 the next day in IST (UTC+5:30). Half-hour offsets are exactly
+  // where naive hour-based arithmetic goes wrong.
+  upsertEvents(db, [ev({ external_id: 'late', occurred_at: '2026-08-30T19:30:00.000Z' })]);
+
+  const rows = queryEvents(db, { start: '2026-08-28', end: '2026-09-01', timezone: 'Asia/Kolkata' });
+  assert.equal(rows[0].effective_date, '2026-08-31');
+});
+
+test('an attributed date is left alone, since it is already a local date', (t) => {
+  const db = tempDb(t);
+  upsertEvents(db, [ev({ external_id: 'attributed', occurred_at: '2026-08-30T22:30:00.000Z' })]);
+  // Set through the attribution path, not the ingest one: ingest deliberately cannot
+  // write effective_at (see CLAUDE.md), which is what keeps occurred_at authoritative.
+  const [row] = queryEvents(db, { start: '2026-08-20', end: '2026-09-01' });
+  setAttribution(db, row.id, {
+    effective_at: '2026-08-25',          // the attribution stage resolved "last Tuesday"
+    precision: 'day', confidence: 0.9, source: 'llm', reasoning: 'test',
+  });
+
+  for (const timezone of ['UTC', 'Australia/Sydney', 'Asia/Kolkata']) {
+    const rows = queryEvents(db, { start: '2026-08-20', end: '2026-09-01', timezone });
+    assert.equal(rows[0].effective_date, '2026-08-25', `must not be shifted again in ${timezone}`);
+  }
+});
+
+test('grouping stats by day uses the local day too, not the UTC one', (t) => {
+  const db = tempDb(t);
+  upsertEvents(db, [
+    ev({ external_id: 'a', occurred_at: '2026-08-30T22:30:00.000Z' }),   // 31st in Sydney
+    ev({ external_id: 'b', occurred_at: '2026-08-30T23:00:00.000Z' }),   // 31st in Sydney
+    ev({ external_id: 'c', occurred_at: '2026-08-30T02:00:00.000Z' }),   // 30th in Sydney
+  ]);
+  const range = { start: '2026-08-28', end: '2026-09-01', groupBy: 'day' };
+
+  const utc = getStats(db, { ...range, timezone: 'UTC' });
+  assert.deepEqual(utc.byKey, [{ key: '2026-08-30', count: 3 }], 'all three land on one day in UTC');
+
+  const sydney = getStats(db, { ...range, timezone: 'Australia/Sydney' });
+  assert.equal(sydney.total, 3, 'no event may be lost by the regrouping');
+  assert.deepEqual(
+    [...sydney.byKey].sort((x, y) => (x.key < y.key ? -1 : 1)),
+    [{ key: '2026-08-30', count: 1 }, { key: '2026-08-31', count: 2 }],
+    'in Sydney they split across two days',
+  );
 });
