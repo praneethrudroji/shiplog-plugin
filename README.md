@@ -74,6 +74,10 @@ Add the marketplace and install the plugin:
 /plugin install shiplog
 ```
 
+This works in the Claude Code CLI. Installing from the **Claude Desktop app does not currently
+work**: it fails with "the archive must contain a `.claude-plugin/plugin.json` manifest". The cause
+is not this repository's layout, which has been checked (see below). Use the CLI for now.
+
 Or clone it directly into your plugins directory:
 
 ```bash
@@ -330,16 +334,19 @@ which is what led to the deterministic weekday check described in
 
 ## Roadmap
 
-**Next up:**
+**Known limitation:**
 
-- **Release automation.** Enforce a `plugin.json` version bump on any pull request that touches the
-  plugin, since Claude Code only offers an update when the version changes, and tag plus publish a
-  GitHub Release automatically on merge to `main`.
-- **Claude Desktop installation.** The plugin installs cleanly from the CLI but not from the Desktop
-  app, which reports that the archive must contain a `.claude-plugin/plugin.json` manifest. Moving to
-  the `plugins/<name>/` layout Anthropic's own marketplace uses is the next thing to try.
+- **Claude Desktop installation does not work.** Installing from the Claude Desktop app fails,
+  reporting that the archive must contain a `.claude-plugin/plugin.json` manifest. Moving to the
+  `plugins/<name>/` layout that Anthropic's own marketplace uses was tried as a fix and **did not
+  resolve it**, so the layout is not the cause. Use the CLI, which installs correctly. See
+  [Design notes](docs/DECISIONS.md) for what was ruled out.
 
 **Done:**
+
+- **Release automation.** A pull request touching the plugin fails unless `plugin.json`'s version is
+  bumped, since Claude Code only offers an update when the version changes. Merges to `main` tag and
+  publish a GitHub Release automatically.
 
 - **CI pipeline.** Every push and pull request runs the suite on Linux and macOS across Node 22, 24
   and 26, plus a plugin manifest validation job. It earned its place immediately: the first run found
