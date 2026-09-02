@@ -24,7 +24,7 @@ run them).
 | Area | State |
 | --- | --- |
 | GitHub source | Working, verified against the live API |
-| Azure DevOps source | Working, verified against Microsoft's published API docs and fixtures. Not yet exercised against a real organization |
+| Azure DevOps source | Working, verified against Microsoft's published API docs and fixtures, and exercised end to end against a real organization. That run is what surfaced the `revisedDate` sentinel bug fixed in 0.3.1 |
 | Nightly sync, backups, retention | Working, launchd job verified end to end on macOS |
 | Question answering (MCP server plus skill) | Working, verified over real stdio as a subprocess |
 | Date attribution from comment text | Working, verified against the real `claude` CLI |
@@ -110,6 +110,11 @@ nothing else. Otherwise create a token with read access to the repositories you 
 **Azure DevOps.** A personal access token from `https://dev.azure.com/{org}/_usersSettings/tokens`
 with three read scopes: Code (read), Work Items (read), Release (read). You will also be asked for
 your organization and which projects to track.
+
+Those three scopes cover syncing, but not the profile endpoint setup uses to resolve your user id,
+which needs User Profile (read) as well. Without it that one step returns 401 while every sync call
+still succeeds. Add the fourth scope, or let setup read your id from the organization's
+`connectionData` endpoint instead, which the three scopes above already permit.
 
 Tokens are written to `~/.shiplog/secrets.env` with mode 0600 and are never stored in the config file.
 

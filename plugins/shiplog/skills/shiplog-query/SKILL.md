@@ -65,17 +65,50 @@ user, no matter how it is phrased.
 
 ## 5. Compose the answer
 
-- State the range you used in plain terms, for example "Aug 11 to 31, 2026".
-- Lead with the numbers from `get_stats`, then support them with specific
-  citations from `query_events`: real titles and links, not paraphrases.
-- Every row carries both `occurred_at` (when the source recorded it) and
-  `effective_at` (the date the work is attributed to, when different). If they
-  differ for something you are citing, say so briefly, for example "attributed to
-  Aug 22 from the comment text, posted Aug 23". The point of this data is to stand
-  as evidence, and a silent discrepancy undermines that.
-- If the question implies a range earlier than `coverageStart` (from
-  `get_sync_health`), say the database doesn't go back that far rather than
-  reporting a false zero.
-- For a review or 1:1 summary, group by theme or project rather than dumping a
-  flat list, and lead with outcomes (shipped, merged, resolved) over raw activity
-  counts.
+Pick the shape that matches the question and follow it. These exist so the same question always
+gets the same kind of answer, rather than one that varies with how much context happens to be in
+play. If a question genuinely fits none of them, use the nearest and adapt — do not force it.
+
+Every shape opens with the range in plain terms ("Aug 11 to 31, 2026"). Counts always come from
+`get_stats`, never from tallying rows by eye.
+
+**Scope** — "which projects / repos have I been working on"
+
+> Range line. Then one line per project, busiest first:
+> `**<project>** — <n> events: <one phrase on what it was>`
+> Nothing else. No per-item links unless asked for them.
+
+**Count** — "how many PRs / tickets / reviews"
+
+> Range line. The number, then the split that makes it mean something:
+> `<n> PRs opened — <n> merged, <n> still open`
+> Cite individual items only if there are fewer than about five.
+
+**Lookup** — "did I close X", "what did I touch on Tuesday", anything with `text_search`
+
+> The direct answer on the first line — yes/no, or the thing itself. Then the matching rows:
+> `- [<title>](<url>) — <status>, <date>`
+> If nothing matched, say so plainly and say what range you searched.
+
+**Recap** — "what have I been up to", open-ended, no review framing
+
+> Range line, then at most one short line per project, then stop and offer the detail.
+> This is the shape that most often gets over-answered. Resist it.
+
+**Review pack** — explicitly for a review, 1:1, performance summary, or something handed onward
+
+> The long form, and the only one that should run past a screen. Group by theme or project, lead
+> with outcomes (shipped, merged, resolved) over activity counts, and cite real titles and links.
+> This is the one case where the citation weight is the point.
+
+### Before any of them, if the data is degraded
+
+State it first, in one line, then answer:
+
+- Sync older than ~36h, or a source in `neverSynced` — say so before the numbers. A collection gap
+  must never read as a quiet period of work.
+- The question reaches earlier than `coverageStart` — say the database does not go back that far
+  rather than reporting a false zero.
+- An `effective_at` that differs from `occurred_at` on something you cite — note it briefly
+  ("attributed to Aug 22 from the comment text, posted Aug 23"). This data is meant to stand as
+  evidence, and a silent discrepancy undermines that.

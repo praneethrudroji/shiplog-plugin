@@ -98,6 +98,31 @@ effect."
 Don't reintroduce a config field that looks wired up but isn't; this exact gap (declared, unused) was
 found and fixed once already.
 
+## Before adding code
+
+This repo has stayed small deliberately: zero third-party dependencies, one owner per concern.
+Growth is the thing to resist, so before writing something new, walk the ladder and stop at the
+first rung that answers.
+
+1. **Does it need to exist?** A capability nobody asked for still has to be maintained, tested and
+   explained. Skip it.
+2. **Is it already here?** `lib/` is small enough to read end to end. Check it before adding a
+   helper — `localDateBound()`, `resolveToken()`, `EFFECTIVE_DATE` and the fixture builders in
+   `test/fixtures/` are the ones most likely to be reinvented.
+3. **Is it in the standard library?** Node 22.16+ is the floor, so `node:sqlite`, global `fetch`,
+   `node:test` and `Intl` are all available and none of them cost a dependency.
+4. **Can it be one line?** Then write the one line.
+5. **Otherwise write the smallest thing a real test can hold down.**
+
+Taking on a third-party dependency is a `docs/DECISIONS.md` decision, not a convenience (D12-D14).
+
+The same instinct applies to prose. `skills/*/SKILL.md` files are read into a live context window on
+every invocation, so a paragraph that restates the one above it costs tokens on every single run.
+
+If you have the `ponytail` plugin installed, `/ponytail-review` runs this ladder over a diff and
+`/ponytail-audit` runs it over the repo. That is a convenience, not a requirement: the ladder above
+is the rule, and it has to work for a contributor with no plugins installed.
+
 ## Testing conventions
 
 - Never call a real network endpoint, subprocess, or the real `gh`/`claude` CLI from anything under

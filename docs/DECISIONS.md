@@ -370,3 +370,57 @@ only `ticket_status_change` rows, only the exact sentinel value, and only when a
 usable date can be recovered. A row it cannot repair with confidence is left alone,
 because an invented date in a record meant to serve as evidence is worse than a
 missing one.
+
+## Answer length scales with the question, and the rule is built in (D28)
+
+`skills/shiplog-query/SKILL.md` now states the default answer shape — a lookup gets the
+direct answer in a few lines — and scopes the grouped, fully-cited format to review and
+1:1 summaries, where the length earns itself.
+
+The previous text said, unconditionally, to lead with `get_stats` numbers and then support
+them with citations from `query_events`. It described the grouped format as being "for a
+review or 1:1 summary" but never said what the *default* was, so the heavy shape became the
+default for everything. Asked which projects had seen activity over about a week — a question
+whose honest answer is three names — it produced a themed, per-PR breakdown of all 37 events
+with a link each. Nothing in it was factually wrong, which is what made it worth fixing: the
+characteristic failure of a tool built to produce evidence is burying the answer in evidence.
+
+The rejected alternative was to leave this file alone and let a general-purpose brevity
+plugin (`concise`, `terse`, `caveman`) trim the output. That works on the machine where it
+was set up and nowhere else. shiplog is published for other people, and a skill that only
+reads well when the user happens to have installed an unrelated third-party plugin is broken
+by default for everyone else. It also contradicts the zero-dependency rule the runtime
+already follows (D12-D14) — buying a behaviour with someone else's plugin is still buying a
+dependency, just one that is invisible until it is missing.
+
+The same reasoning produced the reuse ladder now in `CLAUDE.md` rather than a note saying to
+run `/ponytail-review`: the ladder is written out so it works for a contributor with nothing
+installed, and the plugin is mentioned only as an optional way to run it mechanically.
+
+## Query answers have one named shape per question type (D29)
+
+`skills/shiplog-query/SKILL.md` section 5 defines five shapes — Scope, Count, Lookup, Recap,
+Review pack — plus a degraded-data preamble that runs before any of them. Each names its
+layout concretely enough that the same question produces the same kind of answer twice.
+
+D28 established that answer length should scale with the question, but left the judgement
+open, and a judgement re-made from scratch every invocation is exactly the thing that drifts
+with whatever else is in the context window. Naming the shapes converts a judgement into a
+lookup. The shapes also encode the invariants that were previously loose prose — range stated
+plainly, counts from `get_stats` rather than eyeballed, `effective_at` divergence surfaced —
+so following the format satisfies them rather than depending on remembering them separately.
+
+They are defaults, not a schema. The section says outright that a question fitting none of
+them should use the nearest and adapt. A rigid template set would trade the old failure
+(everything gets the heavy shape) for a new one (an odd question gets forced into a
+close-but-wrong shape), and the second is harder to notice.
+
+They live inline rather than in a sibling reference file. An output format is needed on every
+single invocation, so a separate file would mean an extra read every time to save nothing.
+The cost was kept flat by deleting the prose the templates made redundant: the section
+carries five formats in roughly the space the old unconditional advice took.
+
+`skills/shiplog-status/SKILL.md` deliberately did not get the same treatment. Its step 4
+already enumerates the fields to report and prescribes a response per failure mode, which is
+what a format would supply. Adding one would have been lines in an always-read file for no
+behavioural change.
