@@ -295,3 +295,38 @@ The SQL expression is retained for filtering and ordering, where it is close eno
 themselves are already converted, and where SQLite offers no conversion to an arbitrary timezone: its
 only `localtime` is the host machine's. Day grouping moved into JavaScript for the same reason. The
 comment on `EFFECTIVE_DATE` now says which of the two uses it is valid for.
+
+## The plugins/ layout did not fix Desktop installation (D26)
+
+The move to `plugins/shiplog/` (D-adjacent, see the restructure) was made on an explicit hypothesis:
+that Claude Desktop's failure, "The archive must contain a `.claude-plugin/plugin.json` manifest",
+came from Desktop inspecting an archive of the resolved `source` path, and that matching the layout
+Anthropic's own marketplace uses would resolve it.
+
+**The hypothesis was wrong.** Desktop installation still fails after the restructure. Recording that
+plainly, because the restructure was committed on the strength of a guess, and a guess that did not
+pay off is worth as much to the next person as one that did.
+
+What is now ruled out, each checked rather than assumed:
+
+- The repository URL. It returns HTTP 200 from both github.com and the API, is public, is not
+  archived, and its default branch is `main`. The "check the repository URL" message Desktop shows is
+  misleading; the address was never the problem.
+- `marketplace.json` being unreachable. It is fetchable over raw.githubusercontent.com.
+- The manifests being invalid. `claude plugin validate ./plugins/shiplog --strict` exits 0, and a test
+  asserts the marketplace `source` resolves to a directory that really does contain
+  `.claude-plugin/plugin.json`.
+- The repository layout. Both the flat layout and the `plugins/<name>/` layout fail in Desktop, and
+  both succeed from the CLI.
+
+The CLI installs correctly from this exact URL, including resolving `./plugins/shiplog` and
+extracting only that directory. So the difference lies in whatever Desktop does after fetching, which
+is not observable from here.
+
+The restructure was kept regardless. It matches the reference layout, it separates the plugin from
+repository-level tooling like `scripts/` and `.github/` that users should not receive, and it is what
+made the marketplace-source test meaningful. It is defensible on its own merits; it simply was not
+the fix it was hoped to be.
+
+Next step, if this is picked up again, is an upstream issue with the exact error and the repository
+link rather than further guessing from the outside.
