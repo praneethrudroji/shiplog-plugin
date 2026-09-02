@@ -57,7 +57,9 @@ Your data stays on your machine. Nothing is uploaded anywhere.
 
 ## Requirements
 
-- **Node.js 22 or later.** Uses the built in `node:sqlite`, so there is nothing to `npm install`.
+- **Node.js 22.16 or later.** Uses the built in `node:sqlite`, so there is nothing to `npm install`.
+  The minor version matters: 22.15 and earlier do not export `backup`, which shiplog uses to snapshot
+  the database. If your Node is older, shiplog says so on startup rather than failing obscurely.
   The plugin has zero third party dependencies.
 - **macOS** for automatic scheduling (launchd). Everything else works anywhere Node runs, and on
   Linux you can add the cron line yourself.

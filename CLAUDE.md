@@ -17,7 +17,10 @@ SHIPLOG_HOME=/tmp/scratch node bin/sync.mjs          # point any script at a thr
 ```
 
 There is no build step and no lint command configured; the plugin has zero third-party dependencies
-by design (`node:sqlite`, global `fetch`, `node:test`). Node 22+ is required.
+by design (`node:sqlite`, global `fetch`, `node:test`). **Node 22.16 or later is required**, and the
+minor version is not decorative: 22.15 and below fail on `node:sqlite`'s missing `backup` export. The
+floor was bisected in CI, is enforced by `MIN_NODE` in `lib/config.mjs`, and is pinned as its own
+matrix cell so it cannot quietly break.
 
 **Pass test files, not the `test/` directory.** `node --test test/` works only on Node 26 and later;
 on 22 and 24 it fails with `Cannot find module .../test`. The glob form is portable across every

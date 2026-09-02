@@ -28,19 +28,13 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         node: ['22', '24', '26']
         include:
-          # Bracketing the real floor. 22.13 and 22.14 both fail with
-          # "node:sqlite does not provide an export named 'backup'", and 22.23.2
-          # passes, so the boundary is somewhere in between. Temporary.
-          - os: ubuntu-latest
-            node: '22.15.0'
+          # The documented minimum, pinned exactly. The '22' cell above floats to
+          # the latest 22.x and so would never notice the floor breaking. Bisected
+          # here: 22.15.0 fails on node:sqlite's missing 'backup' export, 22.16.0
+          # is the first that passes. Keep this cell in step with MIN_NODE in
+          # lib/config.mjs.
           - os: ubuntu-latest
             node: '22.16.0'
-          - os: ubuntu-latest
-            node: '22.17.0'
-          - os: ubuntu-latest
-            node: '22.18.0'
-          - os: ubuntu-latest
-            node: '22.20.0'
     steps:
       # actions/checkout@v7.0.1, actions/setup-node@v7.0.0 - pinned to the commit
       # a tag or branch reference is mutable; a plugin's CI trusting an action by
