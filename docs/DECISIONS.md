@@ -330,3 +330,43 @@ the fix it was hoped to be.
 
 Next step, if this is picked up again, is an upstream issue with the exact error and the repository
 link rather than further guessing from the outside.
+
+## Azure DevOps status changes are dated by ChangedDate, not revisedDate (D27)
+
+`normalizeStatusChange` takes its timestamp from the revision's own
+`System.ChangedDate`, not from `revisedDate`. Rows that cannot yield a real date are
+dropped rather than stored with a placeholder.
+
+`revisedDate` is a trap in two independent ways, both confirmed against a live work
+item rather than inferred from documentation:
+
+- On a work item's **current** revision it is `9999-01-01T00:00:00Z`, a sentinel
+  meaning "not superseded yet". Stored as an event date, it sorts above every real
+  event, forever.
+- On **every other** revision it is the moment that revision stopped being current,
+  which is the timestamp of the *next* edit. A ticket moved to Done on a Friday and
+  next touched three weeks later recorded the transition three weeks late. For a tool
+  whose entire question is "when did I do this", that is the wrong date twice over,
+  and the second case is the quieter and more damaging one.
+
+The fixtures did not catch this because they were shaped from the provider's
+documented example, which shows neither the sentinel nor `System.ChangedDate`. This
+is the limit of fixture-driven testing stated plainly: fixtures encode what the
+documentation says, and the documentation showed a tidy case. The bug surfaced only
+by syncing a real project. The fixtures now carry the real shape, including the
+sentinel and the off-by-one-revision relationship between `revisedDate` and the next
+revision's `ChangedDate`.
+
+Fixing the adapter was not sufficient on its own, which is worth recording because it
+was not obvious. The upsert never overwrites `occurred_at`, deliberately, since it is
+the source system's own timestamp and a later sync has no business rewriting it. That
+invariant is right, but it assumes the stored value was a real timestamp. A sentinel
+never was, so a re-sync left it in place. Verified by re-syncing and watching
+`updated_at` correct itself while `occurred_at` did not.
+
+So `repairSentinelTimestamps()` runs when the database is opened, recovering the true
+date from the raw payload already stored beside the row. It is deliberately narrow:
+only `ticket_status_change` rows, only the exact sentinel value, and only when a
+usable date can be recovered. A row it cannot repair with confidence is left alone,
+because an invented date in a record meant to serve as evidence is worse than a
+missing one.

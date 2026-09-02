@@ -166,10 +166,45 @@ export function normalizeWorkItemComment(comment, item, { org, maxBodyChars = 20
   };
 }
 
+// Azure DevOps sets `revisedDate` to this sentinel on a work item's current
+// revision, meaning "not superseded yet" rather than any real date.
+const REVISED_DATE_SENTINEL_YEAR = '9999';
+
+/**
+ * When a revision's change actually happened.
+ *
+ * Not `revisedDate`, which is a trap in two separate ways, both confirmed against a
+ * live work item rather than inferred. On the newest revision it is the year-9999
+ * sentinel above. On every older revision it is the moment that revision stopped
+ * being current, which is to say the timestamp of the *next* edit: a ticket moved to
+ * Done on Friday and next touched three weeks later records the transition three
+ * weeks late. For a tool whose entire question is "when did I do this", that is the
+ * wrong date twice over.
+ *
+ * `System.ChangedDate` on the same revision is when the change was made, which is
+ * what this needs. `revisedDate` is kept only as a fallback, and only when it is not
+ * the sentinel.
+ */
+export function statusChangeDate(update) {
+  const changed = update.fields?.['System.ChangedDate']?.newValue;
+  if (changed) return changed;
+
+  const revised = update.revisedDate;
+  if (revised && !String(revised).startsWith(REVISED_DATE_SENTINEL_YEAR)) return revised;
+
+  return null;
+}
+
 /** A genuine transition has an oldValue; the creation revision (rev 1) does not. */
 export function normalizeStatusChange(update, item, { org, syncedAt }) {
   const change = update.fields?.['System.State'];
   if (!change || change.oldValue === undefined) return null;
+
+  // No usable timestamp means no defensible date to attribute the work to. Dropping
+  // the row is better than inventing one: a wrong date in a record meant to serve as
+  // evidence is worse than a missing one.
+  const occurredAt = statusChangeDate(update);
+  if (!occurredAt) return null;
 
   const project = item.fields['System.TeamProject'];
   return {
@@ -183,8 +218,8 @@ export function normalizeStatusChange(update, item, { org, syncedAt }) {
     url: webWorkItemUrl(org, project, item.id),
     status: change.newValue,
     parent_key: `${project}#${item.id}`,
-    occurred_at: update.revisedDate,
-    updated_at: update.revisedDate,
+    occurred_at: occurredAt,
+    updated_at: occurredAt,
     raw_json: update,
     synced_at: syncedAt,
     needs_enrichment: 0,

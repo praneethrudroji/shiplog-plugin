@@ -308,3 +308,82 @@ test('grouping stats by day uses the local day too, not the UTC one', (t) => {
     'in Sydney they split across two days',
   );
 });
+
+// Regression, found by syncing a real Azure DevOps project. Status changes were
+// stored with occurred_at = 9999-01-01T00:00:00Z, Azure DevOps's sentinel for "this
+// revision is not superseded yet". Fixing the adapter is not enough on its own: the
+// upsert never overwrites occurred_at, deliberately, so a re-sync leaves the bad
+// value in place forever. Verified by re-syncing and watching it not change.
+
+test('a sentinel timestamp is repaired from the stored payload when the db is opened', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-repair-'));
+  const path = join(dir, 'test.db');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  let db = openDatabase(path);
+  upsertEvents(db, [ev({
+    event_type: 'ticket_status_change',
+    external_id: 'wi-status:1:3',
+    occurred_at: '9999-01-01T00:00:00Z',
+    raw_json: { rev: 3, fields: { 'System.ChangedDate': { newValue: '2026-08-23T09:00:00Z' } } },
+  })]);
+  assert.equal(
+    db.prepare("SELECT occurred_at FROM events WHERE external_id = 'wi-status:1:3'").get().occurred_at,
+    '9999-01-01T00:00:00Z',
+    'seeded as the bug left it',
+  );
+  db.close();
+
+  db = openDatabase(path);   // reopening is what an ordinary sync or query does
+  t.after(() => db.close());
+  assert.equal(
+    db.prepare("SELECT occurred_at FROM events WHERE external_id = 'wi-status:1:3'").get().occurred_at,
+    '2026-08-23T09:00:00Z',
+    'recovered from System.ChangedDate in the payload stored alongside it',
+  );
+});
+
+test('the repair refuses to guess when it cannot recover a real date', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-repair-refuse-'));
+  const path = join(dir, 'test.db');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  let db = openDatabase(path);
+  upsertEvents(db, [
+    // No ChangedDate to recover from.
+    ev({ event_type: 'ticket_status_change', external_id: 'no-date', occurred_at: '9999-01-01T00:00:00Z', raw_json: { rev: 1, fields: {} } }),
+    // A payload carrying the sentinel again is not a usable answer either.
+    ev({ event_type: 'ticket_status_change', external_id: 'sentinel-again', occurred_at: '9999-01-01T00:00:00Z', raw_json: { fields: { 'System.ChangedDate': { newValue: '9999-01-01T00:00:00Z' } } } }),
+  ]);
+  db.close();
+
+  db = openDatabase(path);
+  t.after(() => db.close());
+  const rows = db.prepare("SELECT external_id, occurred_at FROM events WHERE occurred_at LIKE '9999-%' ORDER BY external_id").all();
+  assert.deepEqual(
+    rows.map((r) => r.external_id),
+    ['no-date', 'sentinel-again'],
+    'left untouched rather than given an invented date',
+  );
+});
+
+test('the repair touches nothing else', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'shiplog-repair-scope-'));
+  const path = join(dir, 'test.db');
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  let db = openDatabase(path);
+  upsertEvents(db, [
+    ev({ external_id: 'normal-pr', event_type: 'pr_opened', occurred_at: '2026-08-15T10:00:00.000Z' }),
+    // Same sentinel, but not a status change: out of scope, and not this bug.
+    ev({ external_id: 'other-type', event_type: 'ticket_comment', occurred_at: '9999-01-01T00:00:00Z',
+         raw_json: { fields: { 'System.ChangedDate': { newValue: '2026-08-01T10:00:00Z' } } } }),
+  ]);
+  db.close();
+
+  db = openDatabase(path);
+  t.after(() => db.close());
+  const get = (id) => db.prepare('SELECT occurred_at FROM events WHERE external_id = ?').get(id).occurred_at;
+  assert.equal(get('normal-pr'), '2026-08-15T10:00:00.000Z', 'a healthy row must not be rewritten');
+  assert.equal(get('other-type'), '9999-01-01T00:00:00Z', 'the repair is scoped to the event type the bug affected');
+});

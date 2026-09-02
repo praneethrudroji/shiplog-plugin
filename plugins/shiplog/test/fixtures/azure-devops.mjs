@@ -92,11 +92,31 @@ export const workItemComments = {
   continuationToken: null,
 };
 
+// Shaped from a real /updates response, not the documented example. Two details the
+// documentation's tidy sample does not show, and both of which produced wrong data:
+//
+//   1. `revisedDate` on a revision is when that revision STOPPED being current, so
+//      it equals the *next* revision's System.ChangedDate. Note rev 2's revisedDate
+//      below matching rev 3's ChangedDate.
+//   2. On the newest revision `revisedDate` is the year-9999 sentinel, meaning "not
+//      superseded", not a date at all.
+//
+// System.ChangedDate on the same revision is when the change was actually made.
 export const workItemUpdates = {
   value: [
-    { id: 1, rev: 1, revisedBy: ME, revisedDate: '2026-08-15T08:00:00Z', fields: { 'System.State': { newValue: 'New' } } },
-    { id: 2, rev: 2, revisedBy: ME, revisedDate: '2026-08-22T09:00:00Z', fields: { 'System.State': { oldValue: 'Active', newValue: 'Resolved' } } },
-    { id: 3, rev: 3, revisedBy: OTHER, revisedDate: '2026-08-23T09:00:00Z', fields: { 'System.State': { oldValue: 'Resolved', newValue: 'Closed' } } },
+    {
+      id: 1, rev: 1, revisedBy: ME, revisedDate: '2026-08-22T09:00:00Z',
+      fields: { 'System.ChangedDate': { newValue: '2026-08-15T08:00:00Z' }, 'System.State': { newValue: 'New' } },
+    },
+    {
+      id: 2, rev: 2, revisedBy: ME, revisedDate: '2026-08-23T09:00:00Z',
+      fields: { 'System.ChangedDate': { newValue: '2026-08-22T09:00:00Z' }, 'System.State': { oldValue: 'Active', newValue: 'Resolved' } },
+    },
+    {
+      // The current revision, carrying the sentinel.
+      id: 3, rev: 3, revisedBy: OTHER, revisedDate: '9999-01-01T00:00:00Z',
+      fields: { 'System.ChangedDate': { newValue: '2026-08-23T09:00:00Z' }, 'System.State': { oldValue: 'Resolved', newValue: 'Closed' } },
+    },
   ],
 };
 

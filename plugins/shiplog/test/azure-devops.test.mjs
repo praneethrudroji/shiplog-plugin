@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHttpClient } from '../lib/http.mjs';
 import {
   fetchAzureDevOpsEvents, normalizePullRequest, normalizeReviewVote, normalizePrComment,
-  normalizeWorkItemCreated, normalizeWorkItemComment, normalizeStatusChange, normalizeDeployment, whoami,
+  normalizeWorkItemCreated, normalizeWorkItemComment, normalizeStatusChange, statusChangeDate, normalizeDeployment, whoami,
 } from '../lib/sources/azure-devops.mjs';
 import { defaultConfig } from '../lib/config.mjs';
 import * as fx from './fixtures/azure-devops.mjs';
@@ -96,6 +96,71 @@ test('a status change with an oldValue is a real transition', () => {
 test('the creation revision (no oldValue) is not a status change', () => {
   const item = fx.workItemBatch.value[0];
   assert.equal(normalizeStatusChange(fx.workItemUpdates.value[0], item, { org: ORG, syncedAt: SYNCED }), null);
+});
+
+// Regression, found by syncing a real Azure DevOps project rather than the fixtures.
+// A status change was stored with occurred_at = 9999-01-01T00:00:00Z, which is Azure
+// DevOps's sentinel on a work item's current revision meaning "not superseded yet".
+// The fixtures never caught it because they were shaped from the documented example,
+// which shows neither the sentinel nor System.ChangedDate.
+
+test('the year-9999 sentinel is never used as a date', () => {
+  const item = fx.workItemBatch.value[0];
+  const current = fx.workItemUpdates.value[2];
+  assert.equal(current.revisedDate, '9999-01-01T00:00:00Z', 'the fixture must still carry the sentinel');
+
+  const e = normalizeStatusChange(current, item, { org: ORG, syncedAt: SYNCED });
+  assert.equal(e.occurred_at, '2026-08-23T09:00:00Z', 'the date the change was actually made');
+  assert.ok(!String(e.occurred_at).startsWith('9999'), 'a year-9999 event would sort above everything real, forever');
+});
+
+// The subtler half, and the one that would have gone on quietly producing wrong
+// dates: revisedDate is when a revision STOPPED being current, so it is the timestamp
+// of the next edit. A ticket moved to Done on Friday and next touched three weeks
+// later would record the transition three weeks late.
+test('a transition is dated when it happened, not when the next edit happened', () => {
+  const item = fx.workItemBatch.value[0];
+  const rev2 = fx.workItemUpdates.value[1];
+
+  assert.equal(rev2.revisedDate, '2026-08-23T09:00:00Z', 'revisedDate points at the next revision');
+  assert.equal(
+    rev2.revisedDate,
+    fx.workItemUpdates.value[2].fields['System.ChangedDate'].newValue,
+    'which is exactly the next revision\'s own ChangedDate, the trap in one line',
+  );
+
+  const e = normalizeStatusChange(rev2, item, { org: ORG, syncedAt: SYNCED });
+  assert.equal(e.occurred_at, '2026-08-22T09:00:00Z', 'when this transition was made');
+  assert.equal(e.updated_at, '2026-08-22T09:00:00Z', 'updated_at must not keep the old wrong value either');
+});
+
+test('statusChangeDate prefers ChangedDate, falls back, and refuses the sentinel', () => {
+  assert.equal(
+    statusChangeDate({ fields: { 'System.ChangedDate': { newValue: '2026-08-01T10:00:00Z' } }, revisedDate: '2026-08-09T10:00:00Z' }),
+    '2026-08-01T10:00:00Z',
+    'ChangedDate wins when present',
+  );
+  assert.equal(
+    statusChangeDate({ fields: {}, revisedDate: '2026-08-09T10:00:00Z' }),
+    '2026-08-09T10:00:00Z',
+    'revisedDate is an acceptable fallback when it is a real date',
+  );
+  assert.equal(
+    statusChangeDate({ fields: {}, revisedDate: '9999-01-01T00:00:00Z' }),
+    null,
+    'but never the sentinel',
+  );
+  assert.equal(statusChangeDate({ fields: {} }), null, 'nor a missing date');
+});
+
+test('a transition with no usable date is dropped rather than given an invented one', () => {
+  const item = fx.workItemBatch.value[0];
+  const undateable = { rev: 9, revisedDate: '9999-01-01T00:00:00Z', fields: { 'System.State': { oldValue: 'A', newValue: 'B' } } };
+  assert.equal(
+    normalizeStatusChange(undateable, item, { org: ORG, syncedAt: SYNCED }),
+    null,
+    'a wrong date in a record meant to be evidence is worse than a missing row',
+  );
 });
 
 test('a deployment uses the best available completion timestamp', () => {
