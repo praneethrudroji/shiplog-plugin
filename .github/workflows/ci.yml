@@ -28,13 +28,19 @@ jobs:
         os: [ubuntu-latest, macos-latest]
         node: ['22', '24', '26']
         include:
-          # Probing where the real floor is. The bare '22' cell resolves to the
-          # latest 22.x, so it says nothing about the oldest 22 that works.
-          # sqlite.backup() is the binding constraint. Temporary.
+          # Bracketing the real floor. 22.13 and 22.14 both fail with
+          # "node:sqlite does not provide an export named 'backup'", and 22.23.2
+          # passes, so the boundary is somewhere in between. Temporary.
           - os: ubuntu-latest
-            node: '22.13.0'
+            node: '22.15.0'
           - os: ubuntu-latest
-            node: '22.14.0'
+            node: '22.16.0'
+          - os: ubuntu-latest
+            node: '22.17.0'
+          - os: ubuntu-latest
+            node: '22.18.0'
+          - os: ubuntu-latest
+            node: '22.20.0'
     steps:
       # actions/checkout@v7.0.1, actions/setup-node@v7.0.0 - pinned to the commit
       # a tag or branch reference is mutable; a plugin's CI trusting an action by
