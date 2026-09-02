@@ -280,8 +280,11 @@ Linux is not automated yet. The installer prints the cron line to add.
 ## Development
 
 ```bash
-node --test test/
+node --test test/*.test.mjs
 ```
+
+Pass the files rather than the `test/` directory: a directory argument works only on Node 26 and
+later, while the glob works everywhere.
 
 The suite runs in under a second, makes no network calls, and needs no credentials. Source modules
 take an injected fetcher so they can be tested against recorded fixtures, and the SQLite layer runs
@@ -311,13 +314,20 @@ which is what led to the deterministic weekday check described in
 
 **Next up:**
 
-- **CI pipeline.** Run `node --test test/` automatically on every push and pull request via GitHub
-  Actions, so a regression is caught before merge rather than by whoever runs the suite next. Given
-  the suite is offline and dependency-free, this should be close to a direct lift of the local command
-  into a workflow file.
-- **Commit and merge rules.** Branch protection requiring the CI check to pass before merging to
-  `main`, and a look at whether a commit message convention is worth enforcing given how this project's
-  commit messages are already used as the detailed record of what changed and why.
+- **Release automation.** Enforce a `plugin.json` version bump on any pull request that touches the
+  plugin, since Claude Code only offers an update when the version changes, and tag plus publish a
+  GitHub Release automatically on merge to `main`.
+- **Claude Desktop installation.** The plugin installs cleanly from the CLI but not from the Desktop
+  app, which reports that the archive must contain a `.claude-plugin/plugin.json` manifest. Moving to
+  the `plugins/<name>/` layout Anthropic's own marketplace uses is the next thing to try.
+
+**Done:**
+
+- **CI pipeline.** Every push and pull request runs the suite on Linux and macOS across Node 22, 24
+  and 26, plus a plugin manifest validation job. It earned its place immediately: the first run found
+  that the `node --test test/` command documented here fails on any Node below 26.
+- **Branch protection.** `main` and `develop` both require a pull request, forbid force pushes and
+  deletions, and dismiss stale approvals.
 
 **After that:**
 
@@ -337,8 +347,8 @@ take an injected `fetcher` rather than calling `fetch` directly, resolve the use
 API rather than trusting configuration, filter every result to that identity, and build fixtures from
 the provider's own documented examples. That keeps the tests offline and credential free.
 
-Please run `node --test test/` before opening a pull request. The suite should stay under a second and
-should never need network access or credentials.
+Please run `node --test test/*.test.mjs` before opening a pull request. The suite should stay under a
+second and should never need network access or credentials.
 
 ## License
 

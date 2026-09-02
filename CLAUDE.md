@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-node --test test/                                  # run the full suite (no network, no credentials, <1s)
+node --test test/*.test.mjs                        # run the full suite (no network, no credentials, <1s)
 node --test test/ranges.test.mjs                    # run one file
-node --test --test-name-pattern="weekday" test/      # filter by test name across all files
+node --test --test-name-pattern="weekday" test/*.test.mjs   # filter by test name across all files
 
 node bin/sync.mjs [--dry-run] [--source github|azure_devops] [--since YYYY-MM-DD] [--no-enrich]
 node bin/install-scheduler.mjs --print|--install|--status|--uninstall
@@ -18,6 +18,11 @@ SHIPLOG_HOME=/tmp/scratch node bin/sync.mjs          # point any script at a thr
 
 There is no build step and no lint command configured; the plugin has zero third-party dependencies
 by design (`node:sqlite`, global `fetch`, `node:test`). Node 22+ is required.
+
+**Pass test files, not the `test/` directory.** `node --test test/` works only on Node 26 and later;
+on 22 and 24 it fails with `Cannot find module .../test`. The glob form is portable across every
+supported version, and CI uses it for that reason. This was found by CI itself, on the run that
+introduced it.
 
 ## Architecture
 
