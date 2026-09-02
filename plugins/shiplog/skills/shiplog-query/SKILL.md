@@ -97,9 +97,13 @@ Every shape opens with the range in plain terms ("Aug 11 to 31, 2026"). Counts a
 
 **Review pack** — explicitly for a review, 1:1, performance summary, or something handed onward
 
-> The long form, and the only one that should run past a screen. Group by theme or project, lead
-> with outcomes (shipped, merged, resolved) over activity counts, and cite real titles and links.
-> This is the one case where the citation weight is the point.
+> The long form, and the only one that should run past a screen. Group by theme or project, and
+> write it as prose the user could say out loud in the room — a paragraph per theme, leading with
+> the outcome (shipped, fixed, unblocked), not a bullet list of "PR #N — title" links. Links are
+> real and drawn from `query_events`, but they back the claim; they don't replace the sentence. A
+> reader should never hit "this PR ... that PR" — if a paragraph reads like a citation list with
+> prose stitched between the links, rewrite it as sentences and drop the parenthetical links to a
+> trailing reference list instead, or omit them unless asked.
 
 ### Before any of them, if the data is degraded
 
