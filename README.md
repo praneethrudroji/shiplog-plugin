@@ -1,10 +1,9 @@
 # shiplog
 
-A Claude Code plugin that remembers what you actually did at work, so you don't have to reconstruct
-it from memory the morning of a review.
+**Your personal engineering activity ledger.**
 
 Every night it collects your own activity from Azure DevOps and GitHub into a local SQLite database.
-Later you just ask:
+Later you just ask Claude:
 
 > what did I contribute in the last 3 weeks?
 >
@@ -14,7 +13,21 @@ Later you just ask:
 
 and you get real counts and real links back, not a vague recollection.
 
-It can also greet you with a short standup summary the first time you open a terminal each day.
+Useful for daily standups, one-on-ones, quarterly and performance reviews, promotion packets,
+project retrospectives, or just answering "what did I actually build?" before an interview.
+
+<!-- demo gif goes here -->
+
+## Quickstart
+
+```
+/plugin marketplace add praneethrudroji/shiplog-plugin
+/plugin install shiplog
+/shiplog-setup
+```
+
+Then just ask. See [Install](#install) for the Claude Desktop caveat and [Setup](#setup) for what
+each source needs.
 
 ## Status
 
@@ -23,12 +36,17 @@ run them).
 
 | Area | State |
 | --- | --- |
-| GitHub source | Working, verified against the live API |
-| Azure DevOps source | Working, verified against Microsoft's published API docs and fixtures, and exercised end to end against a real organization. That run is what surfaced the `revisedDate` sentinel bug fixed in 0.3.1 |
 | Nightly sync, backups, retention | Working, launchd job verified end to end on macOS |
 | Question answering (MCP server plus skill) | Working, verified over real stdio as a subprocess |
 | Date attribution from comment text | Working, verified against the real `claude` CLI |
 | Standup summary on first terminal open | Working, verified by running the real hook script |
+
+### Provider maturity
+
+| Provider | Maturity |
+| --- | --- |
+| GitHub | Production tested, verified against the live API |
+| Azure DevOps | Tested against fixtures and Microsoft's published API docs, plus one real end-to-end run against a live organization — that run is what surfaced the `revisedDate` sentinel bug fixed in 0.3.1. Live behavior beyond that run carries more residual risk than GitHub's |
 | Jira | Not in this release. See [Roadmap](#roadmap) |
 
 ## Why this exists
