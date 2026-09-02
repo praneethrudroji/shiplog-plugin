@@ -249,14 +249,28 @@ test('with no watermark the sync window falls back to the (capped) backfill star
   assert.equal(start, '2026-01-01T00:00:00.000Z');
 });
 
-test('assertSupportedNode accepts the documented floor and anything newer', () => {
-  assert.doesNotThrow(() => assertSupportedNode('22.0.0'));
+// The boundary below is not a guess. A CI matrix bisected it: 22.13.0, 22.14.0 and
+// 22.15.0 all fail with "node:sqlite does not provide an export named 'backup'",
+// and 22.16.0 through 22.23.2 pass. That is why the check compares the minor
+// version too, and why 22.16.0 is a permanent cell in the CI matrix.
+
+test('assertSupportedNode accepts the exact floor and anything newer', () => {
+  assert.doesNotThrow(() => assertSupportedNode('22.16.0'), 'the floor itself must be accepted');
+  assert.doesNotThrow(() => assertSupportedNode('22.23.2'));
   assert.doesNotThrow(() => assertSupportedNode('24.1.0'));
   assert.doesNotThrow(() => assertSupportedNode('26.8.1'));
 });
 
-test('assertSupportedNode rejects anything older, with a clear reason', () => {
-  assert.throws(() => assertSupportedNode('20.11.0'), /Node\.js 22 or later \(found 20\.11\.0\)/);
+test('assertSupportedNode rejects the 22.x versions that genuinely break', () => {
+  // A major-only check would have waved all three of these through, into a
+  // SyntaxError at import time rather than a message saying what to do.
+  for (const version of ['22.0.0', '22.13.0', '22.14.0', '22.15.0']) {
+    assert.throws(() => assertSupportedNode(version), /requires Node\.js 22\.16 or later/, version);
+  }
+});
+
+test('assertSupportedNode rejects older majors, with a clear reason', () => {
+  assert.throws(() => assertSupportedNode('20.11.0'), /Node\.js 22\.16 or later \(found 20\.11\.0\)/);
   assert.throws(() => assertSupportedNode('18.19.0'), /node:sqlite/);
 });
 

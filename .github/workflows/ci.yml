@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+# Least privilege by default; the release workflow is the only job in this repo
+# that needs to write anything, and it declares that permission for itself.
+permissions:
+  contents: read
+
+# A new push to the same PR/branch supersedes the previous run rather than queuing
+# behind it.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: ['22', '24', '26']
+        include:
+          # The documented minimum, pinned exactly. The '22' cell above floats to
+          # the latest 22.x and so would never notice the floor breaking. Bisected
+          # here: 22.15.0 fails on node:sqlite's missing 'backup' export, 22.16.0
+          # is the first that passes. Keep this cell in step with MIN_NODE in
+          # lib/config.mjs.
+          - os: ubuntu-latest
+            node: '22.16.0'
+    steps:
+      # actions/checkout@v7.0.1, actions/setup-node@v7.0.0 - pinned to the commit
+      # a tag or branch reference is mutable; a plugin's CI trusting an action by
+      # name alone is exactly the kind of supply-chain surface this project's own
+      # zero-dependency stance argues against introducing elsewhere.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+      # Explicit file arguments, not `--test test/`: passing a directory is only
+      # supported on Node 26 and up, and fails with "Cannot find module .../test"
+      # on 22 and 24. A glob works on every supported version.
+      - run: node --test test/*.test.mjs
+
+  validate-plugin:
+    name: validate plugin manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - run: npx -y @anthropic-ai/claude-code plugin validate . --strict

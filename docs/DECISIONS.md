@@ -87,9 +87,22 @@ can be queried, which is unrestricted.
 
 ## Runtime and dependencies (D12, D13, D14)
 
-`shiplog` targets Node.js 22 or later and depends on no third-party packages. `node:sqlite` provides
-persistence, the global `fetch` provides HTTP, and `node:test` provides the test runner, all from the
-standard library.
+`shiplog` targets Node.js 22.16 or later and depends on no third-party packages. `node:sqlite`
+provides persistence, the global `fetch` provides HTTP, and `node:test` provides the test runner, all
+from the standard library.
+
+The floor is 22.16 rather than a round 22, and that precision was earned rather than assumed. The
+original claim here was simply "Node 22 or later", carried across three documents without anything
+verifying it. A CI matrix bisected the real boundary: 22.13.0, 22.14.0 and 22.15.0 all fail at import
+time with `The requested module 'node:sqlite' does not provide an export named 'backup'`, and 22.16.0
+is the first version that passes. `lib/backup.mjs` imports that export at module load, so on an older
+runtime the failure is a `SyntaxError` before any shiplog code runs, which tells the user nothing
+about what to fix.
+
+Two consequences worth keeping. `assertSupportedNode` in `lib/config.mjs` compares the minor version,
+not just the major, because a major-only check waves through precisely the versions that break. And
+22.16.0 is pinned as its own CI matrix cell, because the floating `22` cell resolves to the newest
+22.x and would never notice the floor regressing.
 
 This follows from the distribution target (D16). A plugin intended for other developers' machines
 should not require a package installation step, because that step is a common and hard-to-diagnose
