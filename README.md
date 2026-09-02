@@ -141,7 +141,8 @@ without writing, `--source github` to limit it, `--since 2026-01-01` to backfill
 
 ### Time ranges
 
-Say it however you normally would: `today`, `yesterday`, `last_working_day`, `this_week`,
+Say it however you normally would: `today`, `yesterday`, `last_working_day`,
+`since_last_working_day`, `this_week`,
 `last_month`, `this_quarter`, `this_fy`, `last 3 weeks`, `last 12 months`, `fy2026`, `2026-01-22`, or
 `2026-01-01..2026-03-31`.
 
@@ -151,6 +152,8 @@ FY2027. Range boundaries are local midnight in your timezone, which is what make
 the same thing to the tool as it does to you.
 
 `last_working_day` skips weekends, so on a Monday it means the previous Friday.
+`since_last_working_day` runs from that day through the end of today, which is what a standup
+actually wants: what you did last, and what you have done since.
 
 There is no limit on how far back you can ask. If the data is in the database, you can query it.
 
@@ -173,11 +176,17 @@ Highlights:
 Set it in `~/.shiplog/config.json`:
 
 ```json
-"standup": { "enabled": true, "range": "last_working_day" }
+"standup": { "enabled": true, "range": "since_last_working_day" }
 ```
 
-`range` can be `last_working_day`, `last_week`, or `last_month`. It fires at most once per calendar
-day, and it costs nothing to run because it reads the local database directly with no model call.
+`range` can be `since_last_working_day` (the default), `last_working_day`, `last_week`, or
+`last_month`. It fires at most once per calendar day, and it costs nothing to run because it reads the
+local database directly with no model call.
+
+The default groups its output into one section per day, oldest first, so it reads the way a standup is
+spoken. Only days with activity get a section, so an ordinary Monday shows Friday and Today rather
+than three empty weekend headings, and a day you did work on is never hidden just because it was a
+Saturday. `last_working_day` keeps the older single-day behaviour if you prefer it.
 
 Missed it? Ask for it directly with `/shiplog-standup`, any time. It bypasses the once-a-day gate
 entirely and doesn't affect whether the automatic one still fires normally, so checking it on demand

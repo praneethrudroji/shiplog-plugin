@@ -70,7 +70,8 @@ Propose detected values and ask them to confirm rather than making them think fr
 ## 6. Standup summary (optional)
 
 Ask whether they want a short summary the first time they open a terminal each day, and if so over
-what range: `last_working_day`, `last_week`, or `last_month`. Set `standup.enabled` and
+what range: `since_last_working_day` (the default, last working day through now, in per-day
+sections), `last_working_day`, `last_week`, or `last_month`. Set `standup.enabled` and
 `standup.range`.
 
 ## 7. Validate before scheduling

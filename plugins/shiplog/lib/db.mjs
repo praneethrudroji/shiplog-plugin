@@ -171,7 +171,29 @@ const KNOWN_EVENT_TYPES = [
 
 // `effective_at` is a date (YYYY-MM-DD); `occurred_at` is a full ISO instant, so its
 // first 10 characters are compared, never a raw string comparison across both.
+// Used for filtering and ordering inside SQL, where a timezone conversion is not
+// available: SQLite's only localtime is the machine's own, not a configurable one.
+// It is close enough for range filtering, since the bounds themselves are already
+// converted by localDateBound. It is NOT correct for reporting which day a row
+// belongs to, because substr() yields the UTC date. Use effectiveDateOf() for that.
 const EFFECTIVE_DATE = '(CASE WHEN effective_at IS NOT NULL THEN effective_at ELSE substr(occurred_at, 1, 10) END)';
+
+/**
+ * The local calendar date a row belongs to, in the configured timezone.
+ *
+ * `effective_at` is already a local date, written by the attribution stage, so it is
+ * taken as-is. `occurred_at` is a UTC instant and must be converted rather than
+ * sliced: slicing yields the UTC date, which is the wrong day for any timezone far
+ * enough from UTC. An event at 22:30 UTC is already the next morning in Sydney, and
+ * slicing files it under the previous day.
+ *
+ * This is the same class of bug as D22, one level down: D22 was about range bounds,
+ * this is about the per-row date those rows are reported and grouped under.
+ */
+export function effectiveDateOf(row, timezone = 'UTC') {
+  if (row.effective_at) return String(row.effective_at).slice(0, 10);
+  return localDateBound(row.occurred_at, timezone);
+}
 
 /**
  * Converts a range boundary to the local calendar date it refers to, in the given
@@ -183,7 +205,7 @@ const EFFECTIVE_DATE = '(CASE WHEN effective_at IS NOT NULL THEN effective_at EL
  * UTC offset (IST, most of Asia, Australia, much of Europe) that instant's own UTC
  * calendar date is still today, not tomorrow. `end.slice(0, 10)` would silently
  * recover today's date as the exclusive bound, which excludes today's own events
- * from every query the moment they occur in a timezone ahead of UTC — the majority
+ * from every query the moment they occur in a timezone ahead of UTC, the majority
  * of the timezones this plugin actually gets used in. Converting with the real
  * timezone recovers the date that instant is local midnight *of*, which is always
  * the correct bound regardless of offset direction.
@@ -221,13 +243,38 @@ export function getStats(db, { start, end, groupBy = 'event_type', timezone = 'U
   const column = GROUP_COLUMNS[groupBy];
   if (!column) throw new Error(`unknown groupBy: ${groupBy} (expected one of ${Object.keys(GROUP_COLUMNS).join(', ')})`);
 
+  const bounds = [localDateBound(start, timezone), localDateBound(end, timezone)];
+
+  // Grouping by day is done in JS rather than SQL, because the day a row belongs to
+  // depends on the configured timezone and SQLite cannot convert to an arbitrary one.
+  // Grouping on the UTC date would put an evening event under the previous day for
+  // anyone east of UTC, which is exactly the kind of quiet wrongness D22 describes.
+  if (groupBy === 'day') {
+    const rows = db.prepare(`
+      SELECT occurred_at, effective_at
+      FROM events
+      WHERE ${EFFECTIVE_DATE} >= ? AND ${EFFECTIVE_DATE} < ?
+    `).all(...bounds);
+
+    const counts = new Map();
+    for (const row of rows) {
+      const day = effectiveDateOf(row, timezone);
+      counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    const byKey = [...counts.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => (b.count - a.count) || (a.key < b.key ? -1 : 1));
+
+    return { total: rows.length, byKey };
+  }
+
   const rows = db.prepare(`
     SELECT ${column} AS key, COUNT(*) AS count
     FROM events
     WHERE ${EFFECTIVE_DATE} >= ? AND ${EFFECTIVE_DATE} < ?
     GROUP BY key
     ORDER BY count DESC
-  `).all(localDateBound(start, timezone), localDateBound(end, timezone));
+  `).all(...bounds);
 
   return { total: rows.reduce((sum, r) => sum + r.count, 0), byKey: rows };
 }
@@ -254,7 +301,7 @@ export function queryEvents(db, { start, end, sources, eventTypes, project, text
   }
   params.push(cappedLimit);
 
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT id, source, event_type, project, repo, title, url, status,
            occurred_at, effective_at, effective_source, ${EFFECTIVE_DATE} AS effective_date
     FROM events
@@ -263,6 +310,11 @@ export function queryEvents(db, { start, end, sources, eventTypes, project, text
     ORDER BY effective_date DESC
     LIMIT ?
   `).all(...params);
+
+  // Recompute the reported date in the configured timezone. SQL's version is the UTC
+  // one, which files an evening event under the wrong day for anyone far enough from
+  // UTC, and this value is what callers group and display by.
+  return rows.map((row) => ({ ...row, effective_date: effectiveDateOf(row, timezone) }));
 }
 
 export function listProjects(db, { start, end, timezone = 'UTC' } = {}) {

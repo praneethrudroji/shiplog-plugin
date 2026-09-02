@@ -77,7 +77,7 @@ const ABBREV_TO_FULL = {
  * If the source text names a weekday ("last Friday"), that is a checkable fact, not
  * a matter of interpretation: whatever date gets picked must actually fall on that
  * weekday. This caught a real case where the model resolved "Last Friday" (posted
- * on a Tuesday) to a Saturday — confidently, and otherwise within every other
+ * on a Tuesday) to a Saturday, confidently, and otherwise within every other
  * guard. Code can verify this with certainty, so it does not depend on the model
  * getting it right.
  */
