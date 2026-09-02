@@ -1,7 +1,7 @@
 ---
 name: shiplog-standup
 description: Show the daily standup summary right now, whether or not it already ran automatically today. Useful if you missed the automatic one at session start, or want to check a different range.
-argument-hint: "[last_working_day|last_week|last_month]"
+argument-hint: "[since_last_working_day|last_working_day|last_week|last_month]"
 allowed-tools: [Bash]
 ---
 
@@ -13,7 +13,7 @@ Run it now:
 node $CLAUDE_PLUGIN_ROOT/bin/standup.mjs --now
 ```
 
-If the user passed a range (`last_working_day`, `last_week`, `last_month`, or any other
+If the user passed a range (`since_last_working_day`, `last_working_day`, `last_week`, `last_month`, or any other
 `resolve_range` expression), append it as its own shell-quoted argument, for example
 `--now 'last_week'`. Quote it as a literal value, since it is untrusted text the user typed and must
 never be treated as additional shell syntax. With no argument, omit it entirely and this uses

@@ -1,6 +1,6 @@
 {
   "name": "shiplog",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Track and query your own PRs, commits, tickets, reviews and deployments across Azure DevOps and GitHub. Synced nightly into local SQLite, then answered in plain language for standups, one-on-ones and performance reviews.",
   "author": {
     "name": "Praneeth Rudroji",

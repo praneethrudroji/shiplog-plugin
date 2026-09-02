@@ -233,3 +233,65 @@ configuration requires no update when the underlying model changes.
 
 The general principle: a distributed plugin should request a capability tier, not a specific model.
 Model lifecycle is Claude Code's responsibility to manage, not this project's.
+
+## The standup covers the last working day through now, in per-day sections (D24)
+
+The standup range is `since_last_working_day`, which starts at local midnight of the last working day
+and ends at the exclusive end of today. It replaced `last_working_day` as the default.
+
+The previous default showed the last working day and stopped there, so the current day's own work
+never appeared. A standup is "what I did last, and what I'm on now", and a single-day range can only
+ever answer the first half of that. The gap was found by running the command, not by reading it: the
+output covered one past day and simply had nothing to say about today.
+
+The range lives in `lib/ranges.mjs` rather than in the standup code, because that module is the
+single source of truth for date arithmetic. Putting it anywhere else would mean a second
+implementation of "what is the last working day", free to drift from the first and to miss the
+timezone handling in D22.
+
+Output is grouped into one section per day, oldest first, rather than two fixed "yesterday and today"
+blocks. Two blocks cannot describe a Monday, where the previous working day is Friday and the weekend
+may or may not be empty. Sections appear only for days that actually have activity, so an ordinary
+Monday shows Friday and Today rather than three empty weekend headings.
+
+Days with weekend activity are shown rather than hidden. Suppressing Saturday's work would make the
+summary tidier and less true, which is the wrong trade for a tool whose entire purpose is producing an
+accurate record of what someone did.
+
+Headings say "Yesterday" only when the day genuinely is yesterday. On a Monday, Friday is labelled
+"Friday, 28 Aug". Labelling it "Yesterday" would be visibly wrong to the one person guaranteed to read
+it, on one day in every five.
+
+Sections apply only to the standup's own range. `last_week` and `last_month` keep the flat aggregate,
+because thirty day-headings is a log rather than a summary. Per-day event counts are capped instead of
+the total, so a busy Friday cannot push today out of today's standup.
+
+Anyone with `last_working_day` set explicitly keeps the single-day behaviour, since that is a stated
+preference rather than an unconsidered default. Only the default for new installations changed.
+
+## The reported day of an event is computed in the configured timezone (D25)
+
+`queryEvents` and `getStats(group_by: 'day')` compute each row's calendar date with
+`effectiveDateOf()` in JavaScript, using the configured timezone, rather than with SQL's
+`substr(occurred_at, 1, 10)`.
+
+This was found while building the per-day sections above, through a test written in
+`Australia/Sydney` rather than UTC. An event at 22:30 UTC is already 08:30 the next morning in Sydney,
+and the SQL projection filed it under the previous day.
+
+It is the same defect as D22, one level down. D22 corrected the timezone handling of range *bounds*;
+the per-row date that callers group and display by was still the UTC one. The reason it survived the
+first fix is the reason D22 gives for its own existence: every test used UTC, the single offset where
+slicing an ISO string and converting it properly give the same answer.
+
+The blast radius was wider than the standup. Both `query_events` and `get_stats` are exposed over MCP,
+so the wrong day reached user-facing answers about when work happened, in a tool meant to serve as
+evidence.
+
+`effective_at` is deliberately exempt, because it is already a local calendar date written by the
+attribution stage. Converting it again would shift a correctly attributed date by a day.
+
+The SQL expression is retained for filtering and ordering, where it is close enough because the bounds
+themselves are already converted, and where SQLite offers no conversion to an arbitrary timezone: its
+only `localtime` is the host machine's. Day grouping moved into JavaScript for the same reason. The
+comment on `EFFECTIVE_DATE` now says which of the two uses it is valid for.

@@ -56,7 +56,7 @@ const USAGE = `shiplog standup
   --now              show the standup summary right now, regardless of whether
                      it already ran today (does not affect tomorrow's automatic one)
   --range <name>     override the configured range for this one call
-                     (last_working_day, last_week, last_month, or any resolve_range expression)
+                     (since_last_working_day, last_working_day, last_week, last_month, or any resolve_range expression)
   <name>             same as --range <name>, given positionally
                      (e.g. "standup.mjs --now last_week")
   -h, --help         show this message
@@ -87,7 +87,7 @@ export function runOnDemand({ cfg, db, range }) {
   // expression: `??` alone would not catch it, and resolveRange('') would produce
   // a confusing error instead of falling back to the configured default.
   const requested = range || null;
-  const resolved = resolveRange(requested ?? cfg.standup?.range ?? 'last_working_day', rangeOptions(cfg));
+  const resolved = resolveRange(requested ?? cfg.standup?.range ?? 'since_last_working_day', rangeOptions(cfg));
   return formatStandupSummary(db, cfg, resolved);
 }
 
