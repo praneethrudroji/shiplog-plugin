@@ -2,9 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Layout
+
+The plugin lives in `plugins/shiplog/`, matching the layout Anthropic's own marketplace uses. The
+repository root holds only `.claude-plugin/marketplace.json`, `README.md`, `LICENSE`, this file,
+`docs/` and `.github/`.
+
+**Every path in this document is relative to `plugins/shiplog/`**, and every command below is run
+from there. `docs/` and `.github/` are the exceptions, being repository-level.
+
 ## Commands
 
 ```bash
+cd plugins/shiplog                                  # all commands below run from the plugin root
+
 node --test test/*.test.mjs                        # run the full suite (no network, no credentials, <1s)
 node --test test/ranges.test.mjs                    # run one file
 node --test --test-name-pattern="weekday" test/*.test.mjs   # filter by test name across all files
