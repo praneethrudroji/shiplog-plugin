@@ -12,20 +12,31 @@ const SOURCES = ['github', 'azure_devops', 'jira'];
 // exact unflagged-and-stable version is what the CI matrix in D24 exists to confirm.
 // If that matrix shows 22.x failing, this number (and the docs) get corrected to
 // match reality rather than the other way around.
-const MIN_NODE_MAJOR = 22;
+// Established by bisecting a CI matrix, not read off a changelog: 22.13, 22.14 and
+// 22.15 all fail with "The requested module 'node:sqlite' does not provide an
+// export named 'backup'", while 22.16 and everything above it pass. The minor
+// version matters, so a major-only check would wave through the exact versions
+// that break. lib/backup.mjs imports that named export at module load, so an
+// older Node dies with a SyntaxError that says nothing about what to do next.
+export const MIN_NODE = { major: 22, minor: 16 };
 
 /**
  * Every bin/ entry point imports something from this module, so the check lives
  * here once rather than being repeated in each script. A version-mismatch error
- * from a bare `import { DatabaseSync } from 'node:sqlite'` is opaque; this gives a
- * clear one before that import is even reached.
+ * from a bare `import { backup } from 'node:sqlite'` is opaque; this gives a clear
+ * one before that import is even reached.
  */
 export function assertSupportedNode(nodeVersion = process.versions.node) {
-  const major = Number(nodeVersion.split('.')[0]);
-  if (!Number.isFinite(major) || major < MIN_NODE_MAJOR) {
+  const [major, minor] = nodeVersion.split('.').map(Number);
+  const tooOld = !Number.isFinite(major) || !Number.isFinite(minor)
+    || major < MIN_NODE.major
+    || (major === MIN_NODE.major && minor < MIN_NODE.minor);
+
+  if (tooOld) {
     const err = new Error(
-      `shiplog requires Node.js ${MIN_NODE_MAJOR} or later (found ${nodeVersion}). `
-      + "It uses the built-in node:sqlite module, which isn't available on older versions.",
+      `shiplog requires Node.js ${MIN_NODE.major}.${MIN_NODE.minor} or later (found ${nodeVersion}). `
+      + "It uses node:sqlite's backup export for database snapshots, which earlier versions "
+      + "don't provide.",
     );
     err.code = 'SHIPLOG_UNSUPPORTED_NODE';
     throw err;
@@ -224,19 +235,30 @@ export function enabledSources(cfg) {
   return SOURCES.filter((s) => cfg.sources?.[s]?.enabled);
 }
 
-// A hard ceiling on the very first sync, independent of what initialBackfillFrom
-// resolves to. GitHub's search API is rate-limited and Azure DevOps's WIQL query has
-// no natural lower bound, so an unbounded or multi-year setting (all_time, an old
-// explicit date, a future config default nobody has reconsidered) could turn a
-// first sync into a very long one for data that mostly won't get used anyway. See
-// D23. This is a floor on the resolved date, not a config field: nothing the user
-// sets can reach further back than this, only less far.
-const MAX_INITIAL_BACKFILL_DAYS = 730; // 2 years
-
 /**
  * How far back the very first sync reaches. `fy-start` tracks the configured fiscal
  * year rather than a hardcoded date. This bounds only the first sync; nothing here
  * limits what can later be queried, which is unrestricted.
+ *
+ * The result is also capped at 2 years back, independent of what
+ * `initialBackfillFrom` resolves to: GitHub's search API is rate-limited and Azure
+ * DevOps's WIQL query has no natural lower bound, so an unbounded or multi-year
+ * setting (all_time, an old explicit date, a future default nobody has
+ * reconsidered) could turn a first sync into a very long one for data that mostly
+ * won't get used anyway. See D23. This is a floor on the resolved date, not a
+ * config field: nothing the user sets can reach further back than this, only less
+ * far.
+ *
+ * The cap is expressed as `resolveRange('last_24_months', ...)`, the exact same
+ * calendar arithmetic that computes the default itself, rather than a fixed day
+ * count. A day count is wrong here: 24 civil months spanning a leap day is 731
+ * days, not 730, so a millisecond-based cap would occasionally clamp the default
+ * when it should not, and land on a mid-day boundary instead of local midnight,
+ * silently dropping several hours of the first sync's earliest data forever (the
+ * watermark advances past whatever the first run actually covered). Reusing the
+ * same calendar function the default is defined in terms of means the two are
+ * identical whenever no explicit setting is given, so the cap can never
+ * accidentally clamp the default.
  */
 export function initialBackfillStart(cfg, now = new Date()) {
   const setting = cfg.sync?.initialBackfillFrom ?? 'last_24_months';
@@ -248,7 +270,7 @@ export function initialBackfillStart(cfg, now = new Date()) {
   };
   const resolved = setting === 'fy-start' ? resolveRange('this_fy', opts).start : resolveRange(setting, opts).start;
 
-  const cap = new Date(now.getTime() - MAX_INITIAL_BACKFILL_DAYS * 86_400_000).toISOString();
+  const cap = resolveRange('last_24_months', opts).start;
   // The later (more recent) of the two: never let the resolved start reach further
   // back than the cap, but never pull it forward if it was already within it.
   return resolved > cap ? resolved : cap;

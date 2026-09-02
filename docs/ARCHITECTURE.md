@@ -38,6 +38,9 @@ below.
 
 ## Module map
 
+Paths are relative to `plugins/shiplog/`, where the plugin lives. The repository root holds only the
+marketplace manifest, the documentation and the CI workflows.
+
 | Path | Responsibility |
 | --- | --- |
 | `lib/ranges.mjs` | Calendar arithmetic: named ranges, fiscal years and quarters, timezone-correct day boundaries |

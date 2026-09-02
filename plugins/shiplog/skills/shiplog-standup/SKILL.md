@@ -10,12 +10,15 @@ allowed-tools: [Bash]
 Run it now:
 
 ```bash
-node $CLAUDE_PLUGIN_ROOT/bin/standup.mjs --now $ARGUMENTS
+node $CLAUDE_PLUGIN_ROOT/bin/standup.mjs --now
 ```
 
 If the user passed a range (`last_working_day`, `last_week`, `last_month`, or any other
-`resolve_range` expression), pass it through as `--range <value>`. With no argument, this uses
-whatever range is configured in `standup.range`.
+`resolve_range` expression), append it as its own shell-quoted argument, for example
+`--now 'last_week'`. Quote it as a literal value, since it is untrusted text the user typed and must
+never be treated as additional shell syntax. With no argument, omit it entirely and this uses
+whatever range is configured in `standup.range`; do not pass an empty string, which `standup.mjs`
+treats as an explicit (invalid) range rather than "none given".
 
 This bypasses the once-per-day gate entirely: it works even if the automatic summary already fired
 this session, and running it does not consume or otherwise affect whether the automatic one still

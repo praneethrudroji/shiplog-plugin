@@ -15,12 +15,38 @@ import { runStandupCheck, formatStandupSummary } from '../lib/standup.mjs';
 
 export function parseArgs(argv) {
   const args = { now: false, range: null };
+  let rangeGiven = false;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--now') args.now = true;
-    else if (a === '--range') args.range = argv[++i];
-    else if (a === '--help' || a === '-h') args.help = true;
-    else throw new Error(`unknown flag: ${a}`);
+    if (a === '--now') {
+      args.now = true;
+    } else if (a === '--help' || a === '-h') {
+      args.help = true;
+    } else if (a === '--range') {
+      const value = argv[i + 1];
+      // A missing value or another flag right after --range is a mistake worth
+      // rejecting outright, not silently swallowing: consuming the next flag as
+      // the range's value (e.g. --range --now leaving `now` false) previously
+      // fell straight through to the day-gated hook path instead of the explicit
+      // on-demand one the caller actually asked for.
+      if (value === undefined || value.startsWith('-')) {
+        throw new Error('--range requires a value');
+      }
+      if (rangeGiven) throw new Error(`range given twice: '${args.range}' and '${value}'`);
+      args.range = value;
+      rangeGiven = true;
+      i += 1;
+    } else if (a.startsWith('-')) {
+      throw new Error(`unknown flag: ${a}`);
+    } else {
+      // A bare token with no leading dash is the range directly, e.g.
+      // `standup.mjs --now last_week`. This is what /shiplog-standup <range>
+      // actually invokes (SKILL.md passes the user's argument through
+      // positionally), so it must be accepted without requiring --range too.
+      if (rangeGiven) throw new Error(`range given twice: '${args.range}' and '${a}'`);
+      args.range = a;
+      rangeGiven = true;
+    }
   }
   return args;
 }
@@ -31,6 +57,8 @@ const USAGE = `shiplog standup
                      it already ran today (does not affect tomorrow's automatic one)
   --range <name>     override the configured range for this one call
                      (last_working_day, last_week, last_month, or any resolve_range expression)
+  <name>             same as --range <name>, given positionally
+                     (e.g. "standup.mjs --now last_week")
   -h, --help         show this message
 
 With no flags, this is the SessionStart hook and is not meant to be run directly.`;
@@ -55,7 +83,11 @@ function wrapAsUntrusted(summary) {
 /** The --now path: ungated, reports its own errors, never touches standup_state.json. */
 export function runOnDemand({ cfg, db, range }) {
   if (!db) throw new Error('no data yet - run /shiplog-sync (or wait for the first scheduled run)');
-  const resolved = resolveRange(range ?? cfg.standup?.range ?? 'last_working_day', rangeOptions(cfg));
+  // An empty string is treated the same as "none given", not as a literal range
+  // expression: `??` alone would not catch it, and resolveRange('') would produce
+  // a confusing error instead of falling back to the configured default.
+  const requested = range || null;
+  const resolved = resolveRange(requested ?? cfg.standup?.range ?? 'last_working_day', rangeOptions(cfg));
   return formatStandupSummary(db, cfg, resolved);
 }
 

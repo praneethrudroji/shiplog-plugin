@@ -14,7 +14,7 @@
         "name": "Praneeth Rudroji",
         "email": "praneethrudroji@gmail.com"
       },
-      "source": "./",
+      "source": "./plugins/shiplog",
       "category": "productivity",
       "homepage": "https://github.com/praneethrudroji/shiplog-plugin"
     }

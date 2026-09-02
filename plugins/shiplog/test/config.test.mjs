@@ -173,9 +173,9 @@ test('only enabled sources are listed', () => {
 test('the first backfill defaults to 2 years back', () => {
   const cfg = { ...defaultConfig(), timezone: 'UTC' };
   const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
-  // last_24_months resolves via civil-month arithmetic to a local-midnight
-  // boundary, not the exact clock time 2 years ago, it lands within the
-  // millisecond-based cap, so the cap itself never has to engage here.
+  // last_24_months resolves via civil-month arithmetic to a clean local-midnight
+  // boundary, not the exact clock time 2 years ago. The cap is defined in terms of
+  // the exact same calendar function, so the two are always identical here.
   assert.equal(start, '2024-09-01T00:00:00.000Z');
 });
 
@@ -198,19 +198,43 @@ test('the backfill start accepts any range expression, within the 2-year cap', (
 test('all_time is clamped to 2 years back, not left unbounded', () => {
   const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'all_time' } };
   const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
-  assert.equal(start, '2024-08-31T12:00:00.000Z', 'must not resolve all the way to 1970');
+  assert.equal(start, '2024-09-01T00:00:00.000Z', 'must not resolve all the way to 1970');
 });
 
 test('an explicit date far older than 2 years is clamped the same way', () => {
   const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: '2015-01-01' } };
   const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
-  assert.equal(start, '2024-08-31T12:00:00.000Z');
+  assert.equal(start, '2024-09-01T00:00:00.000Z');
 });
 
 test('a setting already within the cap is never pulled forward', () => {
   const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'last_3_months' } };
   const start = initialBackfillStart(cfg, new Date('2026-08-31T12:00:00Z'));
   assert.equal(start, '2026-06-01T00:00:00.000Z', 'a shorter window must pass through untouched');
+});
+
+// Regression: a fixed 730-day cap is wrong whenever the 2-year window spans a leap
+// day (24 civil months containing Feb 29 is 731 days, not 730). The old
+// millisecond-based cap both mis-clamped the unclamped default and landed on a
+// mid-day boundary instead of local midnight, permanently dropping several hours
+// of the first sync's earliest data once the watermark advanced past them.
+
+test('the default is never clamped, even across a leap day, and lands on clean local midnight', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC' };
+  for (const [now, expected] of [
+    ['2029-01-15T09:00:00Z', '2027-01-16T00:00:00.000Z'],
+    ['2029-02-28T12:00:00Z', '2027-03-01T00:00:00.000Z'],
+  ]) {
+    const start = initialBackfillStart(cfg, new Date(now));
+    assert.equal(start, expected, `at ${now}`);
+    assert.match(start, /T00:00:00\.000Z$/, 'must be a clean local-midnight boundary, never mid-day');
+  }
+});
+
+test('an unbounded setting is clamped identically across a leap-spanning window', () => {
+  const cfg = { ...defaultConfig(), timezone: 'UTC', sync: { initialBackfillFrom: 'all_time' } };
+  const start = initialBackfillStart(cfg, new Date('2029-02-28T12:00:00Z'));
+  assert.equal(start, '2027-03-01T00:00:00.000Z');
 });
 
 test('the sync window overlaps the previous watermark by lookbackHours', () => {
@@ -225,14 +249,28 @@ test('with no watermark the sync window falls back to the (capped) backfill star
   assert.equal(start, '2026-01-01T00:00:00.000Z');
 });
 
-test('assertSupportedNode accepts the documented floor and anything newer', () => {
-  assert.doesNotThrow(() => assertSupportedNode('22.0.0'));
+// The boundary below is not a guess. A CI matrix bisected it: 22.13.0, 22.14.0 and
+// 22.15.0 all fail with "node:sqlite does not provide an export named 'backup'",
+// and 22.16.0 through 22.23.2 pass. That is why the check compares the minor
+// version too, and why 22.16.0 is a permanent cell in the CI matrix.
+
+test('assertSupportedNode accepts the exact floor and anything newer', () => {
+  assert.doesNotThrow(() => assertSupportedNode('22.16.0'), 'the floor itself must be accepted');
+  assert.doesNotThrow(() => assertSupportedNode('22.23.2'));
   assert.doesNotThrow(() => assertSupportedNode('24.1.0'));
   assert.doesNotThrow(() => assertSupportedNode('26.8.1'));
 });
 
-test('assertSupportedNode rejects anything older, with a clear reason', () => {
-  assert.throws(() => assertSupportedNode('20.11.0'), /Node\.js 22 or later \(found 20\.11\.0\)/);
+test('assertSupportedNode rejects the 22.x versions that genuinely break', () => {
+  // A major-only check would have waved all three of these through, into a
+  // SyntaxError at import time rather than a message saying what to do.
+  for (const version of ['22.0.0', '22.13.0', '22.14.0', '22.15.0']) {
+    assert.throws(() => assertSupportedNode(version), /requires Node\.js 22\.16 or later/, version);
+  }
+});
+
+test('assertSupportedNode rejects older majors, with a clear reason', () => {
+  assert.throws(() => assertSupportedNode('20.11.0'), /Node\.js 22\.16 or later \(found 20\.11\.0\)/);
   assert.throws(() => assertSupportedNode('18.19.0'), /node:sqlite/);
 });
 

@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  # Deliberately no paths: filter on pull_request. A filtered job does not run at
+  # all on an unmatched pull request, and a required status check that never
+  # reports leaves the pull request waiting on it forever. The job runs every time
+  # and decides for itself whether a bump was needed, so it can safely be required.
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+    paths: ['plugins/shiplog/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # On a pull request: refuse a plugin change that does not bump the version.
+  # Claude Code only offers an update when the version changes, so an unbumped
+  # change is invisible to everyone who already installed the plugin.
+  version-bump:
+    name: plugin version was bumped
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # The check diffs against the base branch, which a depth-1 clone does not
+          # contain.
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.16.0'
+      - run: node --test scripts/*.test.mjs
+      - run: node scripts/check-version-bump.mjs "origin/${{ github.base_ref }}"
+
+  # On merge to main: tag the release and publish it, but only when the version
+  # actually changed, so an unrelated merge does not produce an empty release.
+  publish:
+    name: tag and publish release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      # The only job in this repository that can write anything.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - id: version
+        run: |
+          VERSION=$(node -p "require('./plugins/shiplog/.claude-plugin/plugin.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag v$VERSION already exists; nothing to release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # gh is preinstalled on the runner, so this needs no third-party release
+      # action, keeping the supply-chain surface at zero and matching the
+      # project's own dependency stance.
+      - if: steps.version.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --generate-notes \
+            --verify-tag

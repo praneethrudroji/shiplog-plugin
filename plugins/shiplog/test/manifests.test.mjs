@@ -9,8 +9,13 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const readJson = (rel) => JSON.parse(readFileSync(join(ROOT, rel), 'utf8'));
+// The two manifests deliberately live at different levels. plugin.json belongs to
+// the plugin and travels with it under plugins/shiplog/; marketplace.json describes
+// the repository as a marketplace and so stays at the repository root, two levels up.
+const PLUGIN_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO_ROOT = join(PLUGIN_ROOT, '..', '..');
+const readJson = (rel) => JSON.parse(readFileSync(join(PLUGIN_ROOT, rel), 'utf8'));
+const readRepoJson = (rel) => JSON.parse(readFileSync(join(REPO_ROOT, rel), 'utf8'));
 
 test('plugin.json has the required name field and a matching directory identity', () => {
   const manifest = readJson('.claude-plugin/plugin.json');
@@ -19,11 +24,27 @@ test('plugin.json has the required name field and a matching directory identity'
 });
 
 test('marketplace.json points at a plugin entry with the same name as plugin.json', () => {
-  const marketplace = readJson('.claude-plugin/marketplace.json');
+  const marketplace = readRepoJson('.claude-plugin/marketplace.json');
   const manifest = readJson('.claude-plugin/plugin.json');
   assert.equal(marketplace.plugins.length, 1);
   assert.equal(marketplace.plugins[0].name, manifest.name);
   assert.match(marketplace.plugins[0].source, /^\.\//, 'a relative source must start with ./');
+});
+
+// Regression: the source and the actual directory are two independent strings, and
+// nothing else would notice them drifting apart. A wrong source is invisible
+// locally (the CLI can install from a git clone regardless) and only shows up as an
+// install failure for someone else.
+test('marketplace.json\'s source resolves to the directory the plugin actually lives in', () => {
+  const marketplace = readRepoJson('.claude-plugin/marketplace.json');
+  const source = marketplace.plugins[0].source;
+  assert.equal(source, './plugins/shiplog');
+
+  const resolved = join(REPO_ROOT, source, '.claude-plugin', 'plugin.json');
+  assert.doesNotThrow(
+    () => readFileSync(resolved, 'utf8'),
+    `marketplace source "${source}" must contain a .claude-plugin/plugin.json`,
+  );
 });
 
 test('hooks.json uses the plugin wrapper format, not the flat settings format', () => {
@@ -50,7 +71,7 @@ test('.mcp.json declares the server with a portable command path', () => {
 test('every skill file has valid frontmatter with a name matching its directory', () => {
   const skills = ['shiplog-query', 'shiplog-setup', 'shiplog-status', 'shiplog-sync', 'shiplog-standup'];
   for (const dir of skills) {
-    const text = readFileSync(join(ROOT, 'skills', dir, 'SKILL.md'), 'utf8');
+    const text = readFileSync(join(PLUGIN_ROOT, 'skills', dir, 'SKILL.md'), 'utf8');
     assert.match(text, /^---\n/, `${dir}: SKILL.md must start with frontmatter`);
     const nameMatch = /\nname:\s*(\S+)/.exec(text);
     assert.ok(nameMatch, `${dir}: missing a name: field`);
