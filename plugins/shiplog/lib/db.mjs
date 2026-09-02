@@ -32,17 +32,61 @@ export function openDatabase(path, { readOnly = false } = {}) {
   return db;
 }
 
+/**
+ * Repairs Azure DevOps work item status changes stored with the year-9999 sentinel
+ * as their timestamp, written by builds before that trap was known.
+ *
+ * A re-sync cannot fix these on its own, and deliberately so: the upsert never
+ * overwrites `occurred_at`, because it is the source system's own timestamp and a
+ * later sync has no business rewriting it. That invariant is right, but it assumes
+ * the stored value was a real timestamp to begin with. A sentinel never was, so it
+ * would otherwise sit in the database forever, sorting above every genuine event.
+ *
+ * Narrow on purpose: only rows that are exactly this known-bad value, and only when
+ * the correct timestamp can be recovered from the raw payload that was stored
+ * alongside it. Anything it cannot repair confidently is left alone rather than
+ * guessed at.
+ */
+function repairSentinelTimestamps(db) {
+  const broken = db.prepare(`
+    SELECT id, raw_json FROM events
+    WHERE event_type = 'ticket_status_change' AND occurred_at LIKE '9999-%'
+  `).all();
+  if (!broken.length) return 0;
+
+  const update = db.prepare('UPDATE events SET occurred_at = ? WHERE id = ?');
+  let repaired = 0;
+  for (const row of broken) {
+    let changed = null;
+    try {
+      changed = JSON.parse(row.raw_json)?.fields?.['System.ChangedDate']?.newValue ?? null;
+    } catch { /* unparseable payload: leave the row alone rather than invent a date */ }
+
+    if (changed && !String(changed).startsWith('9999')) {
+      update.run(changed, row.id);
+      repaired += 1;
+    }
+  }
+  return repaired;
+}
+
 function migrate(db) {
   const current = db.prepare('PRAGMA user_version').get().user_version;
-  if (current === SCHEMA_VERSION) return;
   if (current > SCHEMA_VERSION) {
     throw new Error(
       `database schema is v${current}, newer than this build understands (v${SCHEMA_VERSION}). Upgrade the plugin.`,
     );
   }
+  if (current === SCHEMA_VERSION) {
+    repairSentinelTimestamps(db);
+    return;
+  }
   db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
+  repairSentinelTimestamps(db);
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
+
+export { repairSentinelTimestamps };
 
 const UPSERT = `
 INSERT INTO events (
