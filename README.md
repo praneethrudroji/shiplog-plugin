@@ -1,4 +1,5 @@
 # shiplog
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/0290de2f-bbbe-4279-b80e-ddba6a5b8886" />
 
 A Claude Code plugin that remembers what you actually did at work, so you don't have to reconstruct
 it from memory the morning of a review.
