@@ -263,7 +263,9 @@ touches your history.
 
 ## Scheduling
 
-Setup installs a launchd job that runs nightly at the hour you choose. You can manage it directly:
+Setup installs a launchd job that runs nightly at the hour you choose. You can manage it directly,
+from the plugin directory (`plugins/shiplog/` in this repository, or the installed plugin's own
+directory):
 
 ```bash
 node bin/install-scheduler.mjs --print       # show the exact files, write nothing
@@ -281,7 +283,12 @@ Linux is not automated yet. The installer prints the cron line to add.
 
 ## Development
 
+The plugin itself lives in `plugins/shiplog/`, the layout Anthropic's own marketplace uses. The
+repository root holds the marketplace manifest, the docs and the workflows. Paths below are relative
+to the plugin directory.
+
 ```bash
+cd plugins/shiplog
 node --test test/*.test.mjs
 ```
 

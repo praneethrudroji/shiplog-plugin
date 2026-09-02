@@ -48,6 +48,7 @@ jobs:
       # supported on Node 26 and up, and fails with "Cannot find module .../test"
       # on 22 and 24. A glob works on every supported version.
       - run: node --test test/*.test.mjs
+        working-directory: plugins/shiplog
 
   validate-plugin:
     name: validate plugin manifest
@@ -58,4 +59,4 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24'
-      - run: npx -y @anthropic-ai/claude-code plugin validate . --strict
+      - run: npx -y @anthropic-ai/claude-code plugin validate ./plugins/shiplog --strict
